@@ -58,6 +58,5 @@ logs/
 !.vscode/launch.json
 !.vscode/extensions.json
 
-*/workloads
 
 raw_trace.txt

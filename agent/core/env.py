@@ -2,126 +2,216 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import subprocess
-import time
+import os
+
+# 导入我们亲手打造的两大神器
+from .vfs_extractor import DamonVFSExtractor
+from .ebpf_extractor import EbpfReuseExtractor
 
 class ChameleonEnv(gym.Env):
     """
-    AI for OS: 变色龙 eBPF 强化学习沙盒环境
+    AI for OS: 变色龙 eBPF 强化学习沙盒环境 (终极融合版)
     """
-    def __init__(self):
+    def __init__(self, target_pid: int, watch_dir: str, bpf_exec_path: str):
         super(ChameleonEnv, self).__init__()
         
+        self.target_pid = target_pid
+
         # ==========================================
-        # 1. 动作空间 (Action Space): 变色龙的 5 个旋钮
-        # [p_access, p_direction, p_threshold, p_survival, p_ghost]
-        # p_access:    0, 1, 2 (瞎子, 布尔, 计数)
-        # p_direction: 0, 1    (尾部扫描, 头部扫描) -> 注意：我们目前底层被强制为 0，这里保留维度但Agent会发现改它没用
-        # p_threshold: 0, 1, 2, 3 (免死阈值)
-        # p_survival:  0, 1    (降级, 摘下重排)
-        # p_ghost:     0, 1    (关闭, 开启幽灵表)
+        # 动态雷达：自动寻的 Chameleon 控制 Map
+        # ==========================================
+        self.map_name = "cml_params_map" 
+        self.map_id = self._find_bpf_map_id(self.map_name)
+        if not self.map_id:
+            raise RuntimeError(f"致命错误：找不到名为 {self.map_name} 的 eBPF Map！请确认 C 程序已加载。")
+        print(f"[Env] 雷达成功锁定变色龙控制平面! ID: {self.map_id}")
+
+        # ==========================================
+        # 1. 动作空间 (Action Space): 5 个旋钮
         # ==========================================
         self.action_space = spaces.MultiDiscrete([3, 2, 4, 2, 2])
+        self.current_action = np.zeros(5, dtype=np.float32)
         
         # ==========================================
-        # 2. 状态空间 (Observation Space): DAMON/eBPF 提取的特征
-        # 假设我们目前喂给 Agent 3 个连续特征：
-        # [Delta缺页数(归一化), 重用距离均值, WSS工作集大小]
+        # 2. 状态空间 (Observation Space): 13 维终极向量
         # ==========================================
+        # 0: log1p(WSS_MiB)
+        # 1-3: Cold%, Warm%, Hot%
+        # 4-5: log1p(Reuse_Count), log1p(Avg_Distance)
+        # 6-7: log1p(Minor_Faults), log1p(Major_Faults)
+        # 8-12: Action_1 到 Action_5 (归一化到 0~1 的当前自身状态)
         self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(3,), dtype=np.float32
+            low=0.0, high=np.inf, shape=(13,), dtype=np.float32
         )
         
-        # eBPF Map 的 ID (你需要根据实际情况修改，之前我们查到是 5)
-        # 更优雅的做法是在 Python 里通过名字查找 ID，这里先硬编码跑通 MVP
-        self.map_id = 5 
+        # 初始化双子星提取器
+        print("[Env] 正在挂载 DAMON 宏观雷达与 eBPF 微观显微镜...")
+        self.damon_extractor = DamonVFSExtractor(target_pid)
+        self.ebpf_extractor = EbpfReuseExtractor(watch_dir, bpf_exec_path)
         
         # 内部状态记录
-        self.prev_misses = 0
+        self.prev_min_flt = 0
+        self.prev_maj_flt = 0
         self.current_step = 0
-        self.max_steps = 1000 # 跑1000次调参算通关一个 Episode
+        self.max_steps = 1000
 
-    def _get_system_misses(self) -> int:
+    def _get_vmstat(self):
         """
-        [桩函数] 从系统中读取当前的 Page Fault 次数。
-        实际中可以通过读取 /proc/vmstat 中的 pgmajfault 字段来实现。
+        读取系统的 Minor 和 Major Page Faults
         """
+        pgfault, pgmajfault = 0, 0
         try:
             with open('/proc/vmstat', 'r') as f:
                 for line in f:
-                    if line.startswith('pgmajfault'):
-                        return int(line.split()[1])
+                    if line.startswith('pgmajfault '):
+                        pgmajfault = int(line.split()[1])
+                    elif line.startswith('pgfault '):
+                        pgfault = int(line.split()[1])
         except Exception:
             pass
-        return 0
+        return pgfault, pgmajfault
 
-    def _get_damon_features(self) -> np.ndarray:
+    def _get_active_fio_pid(self):
         """
-        [桩函数] 从 DAMON 或第一阶段 eBPF 读取状态特征。
-        目前先返回随机的 Dummy 数据，证明流水线跑通。
+        带重试机制的活动 PID 雷达。
+        对抗 FIO 阶段切换时的进程真空期。
         """
-        # 真实场景：读取 /sys/kernel/debug/damon/ 或你的 BPF Map
-        delta_miss = np.random.uniform(0, 1)
-        reuse_dist_mean = np.random.uniform(10, 100)
-        wss_size = np.random.uniform(50, 100)
-        return np.array([delta_miss, reuse_dist_mean, wss_size], dtype=np.float32)
+        import time # 确保文件头部导入了 time
+        
+        # 1. 黄金重试窗口：最多等待 1 秒 (10次 x 0.1秒)
+        for _ in range(10):
+            try:
+                # 尝试抓取存活的 fio
+                pids = subprocess.check_output(["pidof", "fio"]).decode().strip().split()
+                if pids:
+                    self.target_pid = int(pids[0])  # 刷新雷达锁定目标
+                    return self.target_pid
+            except subprocess.CalledProcessError:
+                # pidof 找不到进程时会抛出异常，忽略并等待
+                pass
+            
+            # FIO 正在换弹夹，让子弹飞 0.1 秒
+            time.sleep(0.1)
+            
+        # 2. 终极替身术：如果真没抓到（比如整个 fio 循环被关闭了）
+        # 千万不要返回死 PID！直接返回 Python 脚本自己的 PID (os.getpid())！
+        # 这样 DAMON 去探测时，会发现这是一个拥有真实内存的活进程，绝不会报错。
+        return os.getpid()
+
+    def _find_bpf_map_id(self, target_name: str) -> int | None:
+        """
+        调用 bpftool 动态查找 Map ID，完美处理内核 15 字符截断问题
+        """
+        import json
+        import subprocess
+        
+        # 内核限制 BPF_OBJ_NAME_LEN 为 16 (15个字符 + \0)
+        truncated_name = target_name[:15] 
+        
+        try:
+            result = subprocess.run(["sudo", "bpftool", "map", "list", "-j"], capture_output=True, text=True, check=True)
+            maps = json.loads(result.stdout)
+            for m in maps:
+                map_name = m.get("name", "")
+                # 匹配完整名字，或者被内核截断后的名字
+                if map_name == target_name or map_name == truncated_name:
+                    return m.get("id")
+        except Exception as e:
+            print(f"查找 Map ID 失败: {e}")
+        return None
+
+    def _build_observation(self, damon_state, ebpf_state, delta_min, delta_maj) -> np.ndarray:
+        """
+        特征工程核心：拼接并平滑极其悬殊的系统级指标
+        """
+        obs = np.zeros(13, dtype=np.float32)
+        
+        # [0-3] DAMON 宏观状态
+        obs[0] = np.log1p(damon_state[0])  # 工作集可能从几MB到几千MB，用 log 平滑
+        obs[1:4] = damon_state[1:4]        # 比例特征直接填入 (已经处于 0~1)
+        
+        # [4-5] eBPF 微观状态 (乘回 1000 还原真实数值后再取 log)
+        obs[4] = np.log1p(ebpf_state[0] * 1000.0) 
+        obs[5] = np.log1p(ebpf_state[1] * 1000.0)
+        
+        # [6-7] 系统痛觉 (缺页中断)
+        obs[6] = np.log1p(delta_min)
+        obs[7] = np.log1p(delta_maj)
+        
+        # [8-12] 自身状态感知 (归一化当前动作)
+        # 对应 MultiDiscrete([3, 2, 4, 2, 2]) 的最大合法索引值为 [2, 1, 3, 1, 1]
+        max_actions = np.array([2.0, 1.0, 3.0, 1.0, 1.0], dtype=np.float32)
+        # 避免除以 0，把 0 替换为 1
+        safe_max = np.where(max_actions == 0, 1.0, max_actions) 
+        obs[8:13] = self.current_action / safe_max
+        
+        return obs
 
     def _apply_action_to_ebpf(self, action: np.ndarray):
-        """
-        调用 bpftool 瞬间修改内核变色龙的策略！
-        action 形如 [1, 0, 0, 1, 0]
-        """
-        # 将 [1, 0, 0, 1, 0] 转换为小端的十六进制字节流
-        # 对应 C 语言里的 struct: p_access, p_direction, p_threshold, p_survival, p_ghost (__u32)
+        """调用 bpftool 下发变色龙策略"""
         hex_values = []
         for val in action:
-            # __u32 占 4 个字节，小端模式：比如 1 变成 "01 00 00 00"
-            hex_values.extend([f"{val:02x}", "00", "00", "00"])
-        
+            hex_values.extend([f"{int(val):02x}", "00", "00", "00"])
         value_hex_str = " ".join(hex_values)
-        
-        # 拼接命令: sudo bpftool map update id 5 key hex 00 00 00 00 value hex 01 00...
         cmd = f"sudo bpftool map update id {self.map_id} key hex 00 00 00 00 value hex {value_hex_str}"
-        
-        # 静默执行
         subprocess.run(cmd.split(), capture_output=True, check=False)
+        self.current_action = action
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
         
-        # 重置环境：将变色龙切回纯 FIFO [0, 0, 0, 0, 0]
-        self._apply_action_to_ebpf(np.array([0, 0, 0, 0, 0]))
+        # 1. 重置变色龙为出厂设置 [0, 0, 0, 0, 0]
+        self._apply_action_to_ebpf(np.zeros(5, dtype=int))
         
-        # 初始化基准缺页数
-        self.prev_misses = self._get_system_misses()
+        # 2. 建立 vmstat 基线
+        self.prev_min_flt, self.prev_maj_flt = self._get_vmstat()
         
-        # 返回初始状态和空 info 字典 (Gymnasium V26 标准)
-        obs = self._get_damon_features()
+        # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程 (如果有的话)，实现动态跟踪
+        current_fio_pid = self._get_active_fio_pid()
+        self.damon_extractor.target_pid = current_fio_pid
+
+        # 3. 提取初始状态
+        damon_state = self.damon_extractor.get_current_state(duration=1.0)
+        ebpf_state = self.ebpf_extractor.get_step_stats()
+        
+        obs = self._build_observation(damon_state, ebpf_state, 0, 0)
         return obs, {}
 
     def step(self, action):
-        # 1. 下发动作，改变内核策略！
+        # 1. 瞬间切换内核策略
         self._apply_action_to_ebpf(action)
         
-        # 2. 让子弹飞一会儿：系统带着新策略运行一段时间（比如 1 秒）
-        time.sleep(1.0)
+        # 2. 采样起始时间点的缺页数
+        pre_min, pre_maj = self._get_vmstat()
+
+        # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程 (如果有的话)，实现动态跟踪
+        current_fio_pid = self._get_active_fio_pid()
+        self.damon_extractor.target_pid = current_fio_pid
         
-        # 3. 收集这 1 秒内的战果
-        current_misses = self._get_system_misses()
-        delta_misses = current_misses - self.prev_misses
+        # 3. 让子弹飞：提取 DAMON 数据！
+        # 这个函数底层调用了 VFS 脚本，会极其精准地物理阻塞 1.0 秒
+        damon_state = self.damon_extractor.get_current_state(duration=1.0)
         
-        # 4. 计算奖励 (Reward) - 黄金级方案
-        # 如果缺页数变少了（系统变好了），由于我们要最大化 reward，给一个负的 delta 作为惩罚
-        # 比如：delta 是 500 次缺页，reward 就是 -0.5
-        reward = - (delta_misses / 1000.0) 
+        # 4. DAMON 采集结束，立刻收割这 1 秒内 eBPF 统计的重用增量
+        ebpf_state = self.ebpf_extractor.get_step_stats()
         
-        # 5. 更新内部状态
-        self.prev_misses = current_misses
-        obs = self._get_damon_features()
+        # 5. 采样结束时间点的缺页数，计算 1 秒内的增量
+        post_min, post_maj = self._get_vmstat()
+        delta_min = max(0, post_min - pre_min)
+        delta_maj = max(0, post_maj - pre_maj)
         
-        # 6. 步数推进与结束判定
+        # 6. 组装终极状态向量
+        obs = self._build_observation(damon_state, ebpf_state, delta_min, delta_maj)
+        
+        # ==========================================
+        # 7. 灵魂设计：Reward 函数
+        # 目标：严厉惩罚 Major Fault (读盘极慢)，轻微惩罚 Minor Fault (内存分配开销)
+        # ==========================================
+        reward = - (delta_maj * 1.0 + delta_min * 0.005)
+        
+        # 8. 步数推进
         self.current_step += 1
         terminated = self.current_step >= self.max_steps
-        truncated = False # 是否因为异常中断
         
-        return obs, reward, terminated, truncated, {}
+        return obs, reward, terminated, False, {}

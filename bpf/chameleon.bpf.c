@@ -22,7 +22,7 @@ struct {
     __uint(max_entries, 1);
     __type(key, __u32);
     __type(value, struct rl_params);
-} chameleon_params_map SEC(".maps");
+} cml_params_map SEC(".maps");
 
 // ==========================================
 // 物理数据结构
@@ -65,7 +65,7 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
     bpf_cache_ext_list_add(main_list, folio); 
 
     __u32 param_key = 0;
-    struct rl_params *params = bpf_map_lookup_elem(&chameleon_params_map, &param_key);
+    struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     if (!params) return;
 
     __u64 key = (__u64)folio;
@@ -86,7 +86,7 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     if (!is_folio_relevant(folio)) return;
 
     __u32 param_key = 0;
-    struct rl_params *params = bpf_map_lookup_elem(&chameleon_params_map, &param_key);
+    struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     if (!params || params->p_access == 0) return; // 瞎子模式，直接返回
 
     __u64 key = (__u64)folio;
@@ -114,7 +114,7 @@ static int bpf_chameleon_evict_cb(int idx, struct cache_ext_list_node *a) {
     if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio)) return CACHE_EXT_CONTINUE_ITER;
 
     __u32 param_key = 0;
-    struct rl_params *params = bpf_map_lookup_elem(&chameleon_params_map, &param_key);
+    struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     if (!params) return CACHE_EXT_EVICT_NODE;
 
     __u64 key = (__u64)a->folio;
@@ -141,7 +141,7 @@ static int bpf_chameleon_evict_cb(int idx, struct cache_ext_list_node *a) {
 
 void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *eviction_ctx, struct mem_cgroup *memcg) {
     // __u32 param_key = 0;
-    // struct rl_params *params = bpf_map_lookup_elem(&chameleon_params_map, &param_key);
+    // struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     // 无论 p_direction 是什么，受限于底层框架，我们目前只能从最老的一端 (Tail) 开始扫描
 
     // 第一遍尽力扫描驱逐
