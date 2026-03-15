@@ -10,10 +10,12 @@ import signal
 TEST_DIR = "/tmp/bpf_test"
 TEST_FILE = os.path.join(TEST_DIR, "test.dat")
 FILE_SIZE = "5G"
-
-# Cgroup 内存限制：必须小于文件大小，强行制造驱逐和 Thrashing！
-CGROUP_MEMORY_LIMIT = "2G" 
 FIO_RUNTIME = 60  # 每个阶段测试 60 秒
+
+# 统一的 Cgroup 配置，探针和压测都在这里！
+CGROUP_DIR = "/sys/fs/cgroup/chameleon_bench"
+CGROUP_MEMORY_LIMIT = "2G" 
+BPF_DIR = os.path.expanduser("~/rl_page_cache/bpf")
 
 def run_cmd(cmd: str, check=True):
     print(f"[CMD] {cmd}")
@@ -49,6 +51,7 @@ def get_bpf_map_id(target_name: str) -> int | None:
 
 def reset_chameleon_policy():
     """将变色龙策略重置为全 0 (纯 FIFO / 原生模式)"""
+    # 你的 C 代码里已经把名字改成了 cml_params_map，只有 14 个字符，不会被截断了！
     map_id = get_bpf_map_id("cml_params_map")
     if map_id:
         print(f">>> 重置内核策略 (Map ID: {map_id})...")
@@ -56,18 +59,18 @@ def reset_chameleon_policy():
         zero_hex = " ".join(["00"] * 20)
         run_cmd(f"sudo bpftool map update id {map_id} key hex 00 00 00 00 value hex {zero_hex}", check=False)
     else:
-        print(">>> 未找到 chameleon_params_map，跳过重置 (请确保后台的 eBPF 探针程序已运行)。")
+        print(">>> 未找到 cml_params_map，跳过重置 (请确保后台的 eBPF 探针程序已运行)。")
 
 def run_fio_benchmark(name: str) -> float:
-    """在受限的 Cgroup 中运行 FIO，返回 IOPS"""
+    """在极其固定的变色龙 Cgroup 中运行 FIO，返回 IOPS"""
+    # 抛弃 systemd-run，直接用底层 sh -c 把进程塞进 cgroup.procs
     fio_cmd = (
-        f"sudo systemd-run --scope -q "
-        f"-p MemoryMax={CGROUP_MEMORY_LIMIT} -p MemorySwapMax=0 "
-        f"fio --name={name} --filename={TEST_FILE} "
+        f"sudo sh -c 'echo $$ > {CGROUP_DIR}/cgroup.procs && "
+        f"exec fio --name={name} --filename={TEST_FILE} "
         f"--rw=randread --random_distribution=zipf:1.2 " 
         f"--bs=4k --size={FILE_SIZE} --runtime={FIO_RUNTIME} --time_based "
         f"--direct=0 "  # 走 Page Cache
-        f"--output-format=json"
+        f"--output-format=json'"
     )
     
     print(f"开始执行 FIO 压测 [{name}]，持续 {FIO_RUNTIME} 秒，请耐心等待...")
@@ -81,7 +84,6 @@ def run_fio_benchmark(name: str) -> float:
         return iops
     except Exception as e:
         print(f"解析 FIO 输出失败: {e}")
-        # print("FIO 错误输出:", result.stderr) # 调试时可取消注释
         return 0.0
 
 def main():
@@ -89,10 +91,27 @@ def main():
     print("  AI for OS 终极基准测试 (Native LRU vs Chameleon)")
     print("============================================")
     
-    # 1. 提权与环境准备
+    # 1. 提权与战场清理
     run_cmd("sudo -v")
-    # 物理封锁：关闭系统全局 Swap，逼迫 Linux 进行页面驱逐
     run_cmd("sudo swapoff -a", check=False)
+    run_cmd("sudo pkill -9 cache_ext_reuse", check=False)
+    run_cmd("sudo pkill -9 chameleon", check=False)
+
+    # 2. 建立极其坚固的评测专用 Cgroup
+    run_cmd(f"sudo mkdir -p {CGROUP_DIR}")
+    run_cmd(f"echo {CGROUP_MEMORY_LIMIT} | sudo tee {CGROUP_DIR}/memory.max > /dev/null")
+    run_cmd(f"echo 0 | sudo tee {CGROUP_DIR}/memory.swap.max > /dev/null")
+
+    # 3. 唤醒 eBPF 变色龙双子星
+    print("\n============================================")
+    print("  唤醒 eBPF 变色龙双子星")
+    print("============================================")
+    # 注意这里必须进入 bpf 目录执行，否则它可能找不到编译好的 .o 或 .out 文件
+    run_cmd(f"cd {BPF_DIR} && sudo ./cache_ext_reuse.out -w {TEST_DIR} &")
+    run_cmd(f"cd {BPF_DIR} && sudo ./chameleon.out -w {TEST_DIR} -c {CGROUP_DIR} &")
+    time.sleep(3) # 给内核验证器和 libbpf 挂载探针的时间
+
+    # 4. 锻造基底文件
     prepare_test_file()
 
     # ==========================================
@@ -112,11 +131,10 @@ def main():
     print("\n" + "="*40)
     print("  [Phase 2] 评测 AI 变色龙 (Chameleon)")
     print("="*40)
-    reset_chameleon_policy() # 启动前清零，让 AI 自己接管
+    reset_chameleon_policy() 
     drop_page_cache()
     
     print(">>> 唤醒 AI 大脑守护进程...")
-    # preexec_fn=os.setsid 确保 AI 进程及其派生的子进程都在同一个组，方便结束时一网打尽
     ai_process = subprocess.Popen(
         ["uv", "run", "evaluate.py"], 
         stdout=subprocess.DEVNULL, 
@@ -124,18 +142,19 @@ def main():
         preexec_fn=os.setsid 
     )
     
-    # 给 AI 5 秒钟启动 DAMON 和雷达的时间
     time.sleep(5)
     
     ai_iops = run_fio_benchmark("ai_chameleon")
     
-    print(">>> 压测结束，正在回收 AI 大脑...")
+    print(">>> 压测结束，正在回收 AI 大脑与底层探针...")
     try:
-        # 发送 SIGTERM 优雅地结束整个进程组
         os.killpg(os.getpgid(ai_process.pid), signal.SIGTERM)
     except Exception as e:
-        print(f"清理 AI 进程时遇到小问题: {e}")
         ai_process.terminate()
+
+    # 测试结束，卸载内核里的 eBPF 程序，保持系统洁净
+    run_cmd("sudo pkill -9 cache_ext_reuse", check=False)
+    run_cmd("sudo pkill -9 chameleon", check=False)
 
     # ==========================================
     # 阶段 3：宣判时刻
@@ -154,12 +173,6 @@ def main():
         improvement = ((ai_iops - baseline_iops) / baseline_iops) * 100
         print(f" 相对性能提升 : {improvement:+.2f}%")
         
-        if improvement > 0:
-            print("\n结论: 你的 AI 成功超越了原生 Linux 的调度策略！")
-        else:
-            print("\n结论: 模型还需要更多的数据喂养 (建议加大 train.py 的训练步数)。")
-            
-    # 恢复系统的 swap
     run_cmd("sudo swapon -a", check=False)
 
 if __name__ == "__main__":
