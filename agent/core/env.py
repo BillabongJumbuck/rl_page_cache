@@ -10,7 +10,7 @@ from .ebpf_extractor import EbpfReuseExtractor
 
 class ChameleonEnv(gym.Env):
     """
-    AI for OS: 变色龙 eBPF 强化学习沙盒环境 (终极融合版)
+    AI for OS: 变色龙 eBPF 强化学习沙盒环境 (终极 V3 成本敏感+对数平滑版)
     """
     def __init__(self, target_pid: int, watch_dir: str, bpf_exec_path: str):
         super(ChameleonEnv, self).__init__()
@@ -33,15 +33,16 @@ class ChameleonEnv(gym.Env):
         self.current_action = np.zeros(5, dtype=np.float32)
         
         # ==========================================
-        # 2. 状态空间 (Observation Space): 13 维终极向量
+        # 2. 状态空间 (Observation Space): 15 维终极向量
         # ==========================================
         # 0: log1p(WSS_MiB)
         # 1-3: Cold%, Warm%, Hot%
         # 4-5: log1p(Reuse_Count), log1p(Avg_Distance)
         # 6-7: log1p(Minor_Faults), log1p(Major_Faults)
         # 8-12: Action_1 到 Action_5 (归一化到 0~1 的当前自身状态)
+        # 13-14: 痛觉加速度 (Minor Acceleration, Major Acceleration)
         self.observation_space = spaces.Box(
-            low=0.0, high=np.inf, shape=(13,), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(15,), dtype=np.float32 
         )
         
         # 初始化双子星提取器
@@ -52,6 +53,9 @@ class ChameleonEnv(gym.Env):
         # 内部状态记录
         self.prev_min_flt = 0
         self.prev_maj_flt = 0
+        # 记忆模块：用于计算痛觉加速度
+        self.prev_delta_min = 0.0
+        self.prev_delta_maj = 0.0
         self.current_step = 0
         self.max_steps = 1000
 
@@ -76,7 +80,7 @@ class ChameleonEnv(gym.Env):
         带重试机制的活动 PID 雷达。
         对抗 FIO 阶段切换时的进程真空期。
         """
-        import time # 确保文件头部导入了 time
+        import time 
         
         # 1. 黄金重试窗口：最多等待 1 秒 (10次 x 0.1秒)
         for _ in range(10):
@@ -87,15 +91,11 @@ class ChameleonEnv(gym.Env):
                     self.target_pid = int(pids[0])  # 刷新雷达锁定目标
                     return self.target_pid
             except subprocess.CalledProcessError:
-                # pidof 找不到进程时会抛出异常，忽略并等待
                 pass
             
-            # FIO 正在换弹夹，让子弹飞 0.1 秒
             time.sleep(0.1)
             
-        # 2. 终极替身术：如果真没抓到（比如整个 fio 循环被关闭了）
-        # 千万不要返回死 PID！直接返回 Python 脚本自己的 PID (os.getpid())！
-        # 这样 DAMON 去探测时，会发现这是一个拥有真实内存的活进程，绝不会报错。
+        # 2. 终极替身术
         return os.getpid()
 
     def _find_bpf_map_id(self, target_name: str) -> int | None:
@@ -105,7 +105,6 @@ class ChameleonEnv(gym.Env):
         import json
         import subprocess
         
-        # 内核限制 BPF_OBJ_NAME_LEN 为 16 (15个字符 + \0)
         truncated_name = target_name[:15] 
         
         try:
@@ -113,7 +112,6 @@ class ChameleonEnv(gym.Env):
             maps = json.loads(result.stdout)
             for m in maps:
                 map_name = m.get("name", "")
-                # 匹配完整名字，或者被内核截断后的名字
                 if map_name == target_name or map_name == truncated_name:
                     return m.get("id")
         except Exception as e:
@@ -122,28 +120,31 @@ class ChameleonEnv(gym.Env):
 
     def _build_observation(self, damon_state, ebpf_state, delta_min, delta_maj) -> np.ndarray:
         """
-        特征工程核心：拼接并平滑极其悬殊的系统级指标
+        特征工程核心：拼接并平滑极其悬殊的系统级指标，注入系统加速度
         """
-        obs = np.zeros(13, dtype=np.float32)
+        obs = np.zeros(15, dtype=np.float32)
         
         # [0-3] DAMON 宏观状态
-        obs[0] = np.log1p(damon_state[0])  # 工作集可能从几MB到几千MB，用 log 平滑
-        obs[1:4] = damon_state[1:4]        # 比例特征直接填入 (已经处于 0~1)
+        obs[0] = np.log1p(damon_state[0]) 
+        obs[1:4] = damon_state[1:4] 
         
-        # [4-5] eBPF 微观状态 (乘回 1000 还原真实数值后再取 log)
+        # [4-5] eBPF 微观状态 
         obs[4] = np.log1p(ebpf_state[0] * 1000.0) 
         obs[5] = np.log1p(ebpf_state[1] * 1000.0)
         
-        # [6-7] 系统痛觉 (缺页中断)
+        # [6-7] 系统痛觉 (缺页中断对数化)
         obs[6] = np.log1p(delta_min)
         obs[7] = np.log1p(delta_maj)
         
         # [8-12] 自身状态感知 (归一化当前动作)
-        # 对应 MultiDiscrete([3, 2, 4, 2, 2]) 的最大合法索引值为 [2, 1, 3, 1, 1]
         max_actions = np.array([2.0, 1.0, 3.0, 1.0, 1.0], dtype=np.float32)
-        # 避免除以 0，把 0 替换为 1
         safe_max = np.where(max_actions == 0, 1.0, max_actions) 
         obs[8:13] = self.current_action / safe_max
+        
+        # [13-14] 痛觉加速度 (感知系统正在恶化还是好转)
+        # 当前对数痛觉减去上一秒的对数痛觉
+        obs[13] = obs[6] - np.log1p(self.prev_delta_min)
+        obs[14] = obs[7] - np.log1p(self.prev_delta_maj)
         
         return obs
 
@@ -161,13 +162,17 @@ class ChameleonEnv(gym.Env):
         super().reset(seed=seed)
         self.current_step = 0
         
+        # 清除痛觉记忆，防止新一轮被上一轮干扰
+        self.prev_delta_min = 0.0
+        self.prev_delta_maj = 0.0
+        
         # 1. 重置变色龙为出厂设置 [0, 0, 0, 0, 0]
         self._apply_action_to_ebpf(np.zeros(5, dtype=int))
         
         # 2. 建立 vmstat 基线
         self.prev_min_flt, self.prev_maj_flt = self._get_vmstat()
         
-        # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程 (如果有的话)，实现动态跟踪
+        # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程
         current_fio_pid = self._get_active_fio_pid()
         self.damon_extractor.target_pid = current_fio_pid
 
@@ -185,30 +190,44 @@ class ChameleonEnv(gym.Env):
         # 2. 采样起始时间点的缺页数
         pre_min, pre_maj = self._get_vmstat()
 
-        # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程 (如果有的话)，实现动态跟踪
+        # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程
         current_fio_pid = self._get_active_fio_pid()
         self.damon_extractor.target_pid = current_fio_pid
         
-        # 3. 让子弹飞：提取 DAMON 数据！
-        # 这个函数底层调用了 VFS 脚本，会极其精准地物理阻塞 1.0 秒
+        # 3. 让子弹飞：提取 DAMON 数据！(物理阻塞 1.0 秒)
         damon_state = self.damon_extractor.get_current_state(duration=1.0)
         
-        # 4. DAMON 采集结束，立刻收割这 1 秒内 eBPF 统计的重用增量
+        # 4. 采集 eBPF 统计的重用增量
         ebpf_state = self.ebpf_extractor.get_step_stats()
         
-        # 5. 采样结束时间点的缺页数，计算 1 秒内的增量
+        # 5. 计算 1 秒内的缺页增量
         post_min, post_maj = self._get_vmstat()
         delta_min = max(0, post_min - pre_min)
         delta_maj = max(0, post_maj - pre_maj)
         
-        # 6. 组装终极状态向量
+        # 6. 组装 15 维终极状态向量
         obs = self._build_observation(damon_state, ebpf_state, delta_min, delta_maj)
         
         # ==========================================
-        # 7. 灵魂设计：Reward 函数
-        # 目标：严厉惩罚 Major Fault (读盘极慢)，轻微惩罚 Minor Fault (内存分配开销)
+        # 7. 灵魂设计：Reward 函数 (V3 终极版：对数平滑 + 成本意识)
         # ==========================================
-        reward = - (delta_maj * 1.0 + delta_min * 0.005)
+        # 7.1 对数平滑基础痛觉 (防止瞬间几万次缺页导致梯度爆炸)
+        base_penalty = - (np.log1p(delta_maj) * 5.0 + np.log1p(delta_min) * 0.5)
+        
+        # 7.2 架构开销惩罚 (The Overhead Cost)
+        overhead_penalty = 0.0
+        # 惩罚DAMON高频采样
+        overhead_penalty -= (action[0] * 0.5)
+        # 惩罚幽灵表的大内存开销
+        if action[4] == 1:
+            overhead_penalty -= 1.0
+            
+        # 7.3 终极结算
+        reward = base_penalty + overhead_penalty
+        
+        # 7.4 [重要] 更新历史记忆，供下一步计算“加速度”使用！
+        self.prev_delta_min = delta_min
+        self.prev_delta_maj = delta_maj
         
         # 8. 步数推进
         self.current_step += 1

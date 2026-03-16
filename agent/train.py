@@ -47,9 +47,9 @@ def main():
     # 4a. 如果之前训练过，继续从上次的检查点恢复 (如果没有，就从头开始)
     # model = PPO.load("checkpoints/chameleon_ppo_backup_3000_steps.zip", env=vec_env)
 
-    # 4b. 自动存档器：每 3000 步保存一次到 checkpoints 目录
+    # 4b. 自动存档器：每 1000 步保存一次到 checkpoints 目录
     checkpoint_callback = CheckpointCallback(
-        save_freq=3000,
+        save_freq=1000,
         save_path='./checkpoints/',
         name_prefix='chameleon_ppo_backup'
     )
