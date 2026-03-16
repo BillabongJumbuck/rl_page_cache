@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+agent.egg-info/PKG-INFO
+agent.egg-info/SOURCES.txt
+agent.egg-info/dependency_links.txt
+agent.egg-info/requires.txt
+agent.egg-info/top_level.txt
+core/__init__.py
+core/ebpf_extractor.py
+core/env.py
+core/vfs_extractor.py
+eval/inference_daemon.py

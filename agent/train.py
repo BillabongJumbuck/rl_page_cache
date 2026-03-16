@@ -40,7 +40,7 @@ def main():
         batch_size=64,          # 相应增大 Batch Size
         ent_coef=0.01,          # 增加一点熵系数，鼓励它在漫长岁月里多尝试不同的参数组合
         device="cpu", 
-        tensorboard_log="./chameleon_tensorboard/"
+        tensorboard_log="./logs/chameleon_tensorboard/"
     )
 
     # 5. 点火训练！
@@ -52,9 +52,9 @@ def main():
         print("\n收到中止信号，正在保存脑图...")
 
     # 6. 保存模型权重与【环境归一化统计量】
-    model.save("chameleon_ppo_model")
-    vec_env.save("vec_normalize.pkl") # 极其重要：推理时必须用到这个尺度！
-    print("模型和归一化参数已保存至 chameleon_ppo_model.zip 和 vec_normalize.pkl")
+    model.save("checkpoints/chameleon_ppo_model")
+    vec_env.save("checkpoints/vec_normalize.pkl") 
+    print("模型和归一化参数已保存至 checkpoints 目录下！")
 
 if __name__ == "__main__":
     main()
