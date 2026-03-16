@@ -1,0 +1,24 @@
+database:
+  key_size: 16
+  value_size: 200
+  nr_entry: 80000000
+
+workload:
+  nr_warmup_op: 0
+  warmup_runtime_seconds: 0
+  runtime_seconds: 0
+  nr_op: 80000000 # 插入 8000 万条
+  nr_thread: 8    # Load阶段适当调低线程，保护笔记本CPU
+  operation_proportion:
+    read: 0
+    update: 0
+    insert: 1.0   # 100% 纯插入，造数据
+    scan: 0
+    read_modify_write: 0
+  request_distribution: "zipfian"
+  zipfian_constant: 0.99
+
+leveldb:
+  data_dir: "/home/messidor/rl_page_cache/leveldb_data"
+  cache_size: 16777216 # 把 LevelDB 内部的 BlockCache 压低到 16MB，逼迫它走操作系统的 Page Cache！
+  print_stats: true

@@ -1,0 +1,30 @@
+database:
+  key_size: 16
+  value_size: 200
+  # 必须和 Load 阶段一模一样，否则 YCSB 会去查不存在的数据！
+  nr_entry: 80000000
+
+workload:
+  nr_warmup_op: 0
+  warmup_runtime_seconds: 10
+  # 评测时间拉长到 120 秒，让 50% 的脏页彻底塞满 2GB 内存
+  runtime_seconds: 120
+  nr_op: 80000000
+  # 你的 CPU 是 12 核。在跑评测时，直接火力全开设为 12！
+  # 这会产生极致的并发自旋锁竞争，最大程度压榨 Page Cache
+  nr_thread: 12
+  operation_proportion:
+    read: 0.5
+    update: 0.5
+    insert: 0
+    scan: 0
+    read_modify_write: 0
+  request_distribution: "zipfian"
+  zipfian_constant: 0.99
+
+leveldb:
+  # 绝对安全的物理落盘路径
+  data_dir: "/home/messidor/rl_page_cache/leveldb_data_temp"
+  # 把 LevelDB 的内部缓存压榨到极小 (16MB)，逼它向操作系统要内存
+  cache_size: 16777216
+  print_stats: true

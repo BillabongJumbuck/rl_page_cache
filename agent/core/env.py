@@ -75,27 +75,22 @@ class ChameleonEnv(gym.Env):
             pass
         return pgfault, pgmajfault
 
-    def _get_active_fio_pid(self):
+    def _get_active_target_pid(self, process_names=["fio", "ycsb"]):
         """
-        带重试机制的活动 PID 雷达。
-        对抗 FIO 阶段切换时的进程真空期。
+        带重试机制的活动 PID 雷达。兼容 FIO 和 YCSB！
         """
         import time 
-        
-        # 1. 黄金重试窗口：最多等待 1 秒 (10次 x 0.1秒)
         for _ in range(10):
-            try:
-                # 尝试抓取存活的 fio
-                pids = subprocess.check_output(["pidof", "fio"]).decode().strip().split()
-                if pids:
-                    self.target_pid = int(pids[0])  # 刷新雷达锁定目标
-                    return self.target_pid
-            except subprocess.CalledProcessError:
-                pass
-            
+            for name in process_names:
+                try:
+                    pids = subprocess.check_output(["pidof", name]).decode().strip().split()
+                    if pids:
+                        self.target_pid = int(pids[0])
+                        return self.target_pid
+                except subprocess.CalledProcessError:
+                    continue
             time.sleep(0.1)
             
-        # 2. 终极替身术
         return os.getpid()
 
     def _find_bpf_map_id(self, target_name: str) -> int | None:
@@ -173,8 +168,8 @@ class ChameleonEnv(gym.Env):
         self.prev_min_flt, self.prev_maj_flt = self._get_vmstat()
         
         # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程
-        current_fio_pid = self._get_active_fio_pid()
-        self.damon_extractor.target_pid = current_fio_pid
+        current_target_pid = self._get_active_target_pid()
+        self.damon_extractor.target_pid = current_target_pid
 
         # 3. 提取初始状态
         damon_state = self.damon_extractor.get_current_state(duration=1.0)
@@ -191,8 +186,8 @@ class ChameleonEnv(gym.Env):
         pre_min, pre_maj = self._get_vmstat()
 
         # 2+. 确保 DAMON 监控的 PID 是当前活跃的 fio 进程
-        current_fio_pid = self._get_active_fio_pid()
-        self.damon_extractor.target_pid = current_fio_pid
+        current_target_pid = self._get_active_target_pid()
+        self.damon_extractor.target_pid = current_target_pid
         
         # 3. 让子弹飞：提取 DAMON 数据！(物理阻塞 1.0 秒)
         damon_state = self.damon_extractor.get_current_state(duration=1.0)

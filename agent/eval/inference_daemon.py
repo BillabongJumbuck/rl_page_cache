@@ -37,7 +37,7 @@ def main():
 
     # 4. 开启无限循环与决策审计日志
     obs = vec_env.reset()
-    csv_file = "logs/ai_decisions_log.csv"
+    csv_file = os.environ.get("CHAMELEON_CSV_LOG", "logs/ai_decisions_log.csv")
     
     with open(csv_file, "w", newline="") as f:
         writer = csv.writer(f)

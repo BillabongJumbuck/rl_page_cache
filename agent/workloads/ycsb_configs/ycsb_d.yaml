@@ -1,0 +1,25 @@
+database:
+  key_size: 16
+  value_size: 200
+  nr_entry: 80000000
+
+workload:
+  nr_warmup_op: 0
+  warmup_runtime_seconds: 10
+  runtime_seconds: 120
+  nr_op: 80000000
+  nr_thread: 12
+  operation_proportion:
+    read: 0.95
+    update: 0
+    insert: 0.05
+    scan: 0
+    read_modify_write: 0
+  # YCSB-D 的灵魂是 latest 分布。如果 C++ 版报错不支持 latest，可以退回 zipfian。
+  request_distribution: "latest" 
+  zipfian_constant: 0.99
+
+leveldb:
+  data_dir: "/home/messidor/rl_page_cache/leveldb_data_temp"
+  cache_size: 16777216
+  print_stats: true

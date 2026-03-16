@@ -1,0 +1,24 @@
+database:
+  key_size: 16
+  value_size: 200
+  nr_entry: 80000000
+
+workload:
+  nr_warmup_op: 0
+  warmup_runtime_seconds: 10
+  runtime_seconds: 120
+  nr_op: 80000000
+  nr_thread: 12
+  operation_proportion:
+    read: 1.0
+    update: 0
+    insert: 0
+    scan: 0
+    read_modify_write: 0
+  request_distribution: "zipfian"
+  zipfian_constant: 0.99
+
+leveldb:
+  data_dir: "/home/messidor/rl_page_cache/leveldb_data_temp"
+  cache_size: 16777216
+  print_stats: true
