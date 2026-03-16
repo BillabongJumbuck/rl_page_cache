@@ -24,9 +24,9 @@ while true
     echo ">>> [阶段 2] 复杂事务交火 (70%读/30%写, 弱 Zipfian) - 2分钟"
     fio --name=oltp_mixed --filename=$TEST_FILE --rw=randrw --rwmixread=70 --random_distribution=zipf:0.8 --bs=8k --size=5G --runtime=120 --time_based --direct=0 > /dev/null 2>&1
 
-    echo ">>> [阶段 3] 洪峰突起 (16 线程极高并发随机扫描) - 30秒"
+    echo ">>> [阶段 3] 洪峰突起 (12 线程极高并发随机扫描) - 30秒"
     # 这里不需要 offset_increment，因为 randread 本就是全盘随机跳跃，考验的是并发下的自旋锁
-    fio --name=spike --filename=$TEST_FILE --rw=randread --numjobs=16 --bs=4k --size=5G --runtime=30 --time_based --group_reporting --direct=0 > /dev/null 2>&1
+    fio --name=spike --filename=$TEST_FILE --rw=randread --numjobs=12 --bs=4k --size=5G --runtime=30 --time_based --group_reporting --direct=0 > /dev/null 2>&1
 
     echo ">>> [阶段 4] 分析型宽表扫描 (4 线程错位并发顺序读) - 1分钟"
     # 【核心改动】：offset_increment=1G，让四辆推土机从四个不同的起点同时发车，制造极其惨烈的 Thrashing！
