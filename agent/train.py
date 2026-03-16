@@ -1,4 +1,5 @@
 import os
+from xml.parsers.expat import model
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
@@ -24,13 +25,26 @@ def main():
     check_env(env)
     print("环境体检通过！")
 
-    # 3. 包装成向量化环境并开启【奖励归一化】(核心改动)
+   # ---------------------------------------------------------
+    # 3. 包装成向量化环境并开启【奖励归一化】(带记忆恢复版)
+    # ---------------------------------------------------------
     vec_env = DummyVecEnv([lambda: env])
-    # norm_obs=False: 我们已经在 env.py 里对状态做了 log1p，不需要额外归一化
-    # norm_reward=True: 强力压制那几百上千的负分 Reward
-    vec_env = VecNormalize(vec_env, norm_obs=False, norm_reward=True, clip_reward=10.0)
+    
+    # 检查是否有历史环境尺度存档，如果有，必须加载！
+    normalize_path = "checkpoints/vec_normalize.pkl"
+    if os.path.exists(normalize_path):
+        print(f"📦 发现历史环境尺度存档，正在恢复...")
+        vec_env = VecNormalize.load(normalize_path, vec_env)
+        # SB3 的特性：加载后的 VecNormalize 默认不更新统计，必须手动开启
+        vec_env.training = True
+        vec_env.norm_reward = True
+    else:
+        print(f"🌱 未发现环境存档，创建全新的环境归一化器...")
+        vec_env = VecNormalize(vec_env, norm_obs=False, norm_reward=True, clip_reward=10.0)
 
+    # ---------------------------------------------------------
     # 4. 召唤 PPO 大脑 (增强视野版)
+    # ---------------------------------------------------------
     print("初始化 PPO 神经网络模型...")
     # model = PPO(
     #     "MlpPolicy", 
@@ -45,7 +59,11 @@ def main():
     # )
 
     # 4a. 如果之前训练过，继续从上次的检查点恢复 (如果没有，就从头开始)
-    model = PPO.load("checkpoints/chameleon_ppo_backup_12000_steps.zip", env=vec_env)
+    model = PPO.load(
+        "checkpoints/chameleon_ppo_backup_12000_steps.zip", 
+        env=vec_env,
+        tensorboard_log="./logs/chameleon_tensorboard/" 
+    )
 
     # 4b. 自动存档器：每 1000 步保存一次到 checkpoints 目录
     checkpoint_callback = CheckpointCallback(
@@ -58,7 +76,12 @@ def main():
     print("🚀 开始闭环进化！请紧盯终端的 Loss 变化...")
     try:
         # 将 timesteps 拉长到 50,000 步 (这大约需要运行 17 个小时，你可以随时 Ctrl+C 中断)
-        model.learn(total_timesteps=50000, callback=checkpoint_callback, progress_bar=True)
+        model.learn(
+            total_timesteps=38000, 
+            callback=checkpoint_callback, 
+            progress_bar=True,
+            reset_num_timesteps=False 
+        )
     except KeyboardInterrupt:
         print("\n收到中止信号，正在保存脑图...")
 
