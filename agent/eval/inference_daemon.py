@@ -19,17 +19,17 @@ def main():
 
     # 2. 包装并加载归一化参数 (解决 AI 失忆的关键)
     vec_env = DummyVecEnv([lambda: env])
-    if os.path.exists("vec_normalize.pkl"):
+    if os.path.exists("checkpoints/vec_normalize.pkl"):
         print(">>> 发现归一化参数，正在同步环境尺度...")
-        vec_env = VecNormalize.load("vec_normalize.pkl", vec_env)
+        vec_env = VecNormalize.load("checkpoints/vec_normalize.pkl", vec_env)
         # 极其重要：在评估模式下，绝不能继续更新均值和方差！
         vec_env.training = False 
         vec_env.norm_reward = False 
     else:
-        print(">>> 警告: 未找到 vec_normalize.pkl，AI 可能会因为尺度错乱而发挥失常！")
+        print(">>> 警告: 未找到 checkpoints/vec_normalize.pkl，AI 可能会因为尺度错乱而发挥失常！")
 
     # 3. 加载神经网络
-    model_path = "chameleon_ppo_model.zip"
+    model_path = "checkpoints/chameleon_ppo_model.zip"
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"找不到模型文件 {model_path}！")
     print(f"正在加载神经网络: {model_path}...")
@@ -37,7 +37,7 @@ def main():
 
     # 4. 开启无限循环与决策审计日志
     obs = vec_env.reset()
-    csv_file = "ai_decisions_log.csv"
+    csv_file = "logs/ai_decisions_log.csv"
     
     with open(csv_file, "w", newline="") as f:
         writer = csv.writer(f)

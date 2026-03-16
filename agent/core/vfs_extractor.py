@@ -10,7 +10,7 @@ class DamonVFSExtractor:
         # 2. 绑定同在 core/ 目录下的 fish 脚本
         self.script_path = os.path.join(self.core_dir, "damon_vfs.fish")
         # 3. 把生成的 raw_trace.txt 扔回上一级 (即 agent 根目录)，保持 core 目录的纯净
-        self.trace_file = os.path.abspath(os.path.join(self.core_dir, "..", "raw_trace.txt"))
+        self.trace_file = os.path.abspath(os.path.join(self.core_dir, "../logs", "raw_trace.txt"))
 
     def get_current_state(self, duration=1.0) -> np.ndarray:
         # 1. 呼叫脚本

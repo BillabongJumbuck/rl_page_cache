@@ -1,6 +1,20 @@
 #!/usr/bin/env fish
 # 变色龙通用评测发射器
 
+# 注册终极清理钩子：无视任何意外，强行打扫战场
+function cleanup_battlefield --on-event fish_exit --on-signal SIGINT
+    echo -e "\n============================================"
+    echo "  [清理] 正在切断负载源、大脑与底盘探针..."
+    echo "============================================"
+    sudo pkill -9 -f fio 2>/dev/null
+    sudo pkill -9 -f inference_daemon.py 2>/dev/null
+    sudo pkill -9 cache_ext_reuse 2>/dev/null
+    sudo pkill -9 chameleon 2>/dev/null
+    sudo swapon -a 2>/dev/null
+    echo "评测完成！AI 思考记录已保存至 logs/ai_decisions_log.csv"
+    exit 0
+end
+
 set WORKLOAD_SCRIPT $argv[1]
 
 if test -z "$WORKLOAD_SCRIPT"
@@ -16,6 +30,8 @@ end
 
 set CGROUP_DIR "/sys/fs/cgroup/chameleon_eval"
 set BPF_DIR ~/rl_page_cache/bpf
+
+cd ~/rl_page_cache/agent
 
 echo "============================================"
 echo "  [1/4] 清理战场与 Cgroup 隔离舱准备"
@@ -39,7 +55,7 @@ cd - > /dev/null
 sleep 3
 
 # 启动脱钩的 AI 守护进程，并在后台静默运行
-uv run eval/inference_daemon.py > eval/daemon_stdout.log 2>&1 &
+uv run eval/inference_daemon.py > logs/daemon_stdout.log 2>&1 &
 set AI_PID (jobs -p | tail -n 1)
 echo ">>> AI 大脑已启动 (PID: $AI_PID)，正在监控环境..."
 
@@ -60,4 +76,4 @@ sudo pkill -9 cache_ext_reuse 2>/dev/null
 sudo pkill -9 chameleon 2>/dev/null
 sudo swapon -a
 
-echo "评测完成！AI 的完整思考记录已保存至 ai_decisions_log.csv"
+echo "评测完成！AI 的完整思考记录已保存至 logs/ai_decisions_log.csv"

@@ -2,6 +2,7 @@ import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 # 导入我们打磨好的终极环境
 from core.env import ChameleonEnv
@@ -43,11 +44,21 @@ def main():
         tensorboard_log="./logs/chameleon_tensorboard/"
     )
 
+    # 4a. 如果之前训练过，继续从上次的检查点恢复 (如果没有，就从头开始)
+    # model = PPO.load("checkpoints/chameleon_ppo_backup_3000_steps.zip", env=vec_env)
+
+    # 4b. 自动存档器：每 3000 步保存一次到 checkpoints 目录
+    checkpoint_callback = CheckpointCallback(
+        save_freq=3000,
+        save_path='./checkpoints/',
+        name_prefix='chameleon_ppo_backup'
+    )
+
     # 5. 点火训练！
     print("🚀 开始闭环进化！请紧盯终端的 Loss 变化...")
     try:
         # 将 timesteps 拉长到 50,000 步 (这大约需要运行 17 个小时，你可以随时 Ctrl+C 中断)
-        model.learn(total_timesteps=500, progress_bar=True)
+        model.learn(total_timesteps=50000, callback=checkpoint_callback, progress_bar=True)
     except KeyboardInterrupt:
         print("\n收到中止信号，正在保存脑图...")
 
