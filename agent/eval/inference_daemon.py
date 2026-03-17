@@ -29,7 +29,7 @@ def main():
         print(">>> 警告: 未找到 checkpoints/vec_normalize.pkl，AI 可能会因为尺度错乱而发挥失常！")
 
     # 3. 加载神经网络
-    model_path = "checkpoints/chameleon_ppo_model.zip"
+    model_path = "checkpoints/chameleon_ppo_backup_32000_steps.zip"
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"找不到模型文件 {model_path}！")
     print(f"正在加载神经网络: {model_path}...")

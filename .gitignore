@@ -60,3 +60,6 @@ logs/
 
 
 raw_trace.txt
+
+leveldb_data
+leveldb_data_temp
