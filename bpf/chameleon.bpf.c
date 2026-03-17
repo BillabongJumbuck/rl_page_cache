@@ -1,3 +1,4 @@
+// chameleon.bpf.c
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -6,10 +7,6 @@
 
 char _license[] SEC("license") = "GPL";
 
-// ==========================================
-// 【优化 1】直接使用 BPF 全局变量，彻底干掉 cml_params_map！
-// 用户态直接修改 skel->bss->current_params 即可，0 查表开销！
-// ==========================================
 struct rl_params {
     __u32 p_access;    
     __u32 p_direction; 
@@ -17,7 +14,14 @@ struct rl_params {
     __u32 p_survival;  
     __u32 p_ghost;     
 };
-struct rl_params current_params = {0, 0, 0, 0, 0}; // 存放在 .bss 段
+
+// 【恢复】使用 Array Map，供 Python 大脑跨进程写入策略
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, struct rl_params);
+} cml_params_map SEC(".maps");
 
 static u64 main_list;
 
@@ -28,7 +32,7 @@ struct {
     __type(value, u8);  
 } folio_meta_map SEC(".maps");
 
-// 【优化 2】幽灵表改为 LRU_HASH，防写满崩溃，无需手动管理淘汰
+// 【优化保留】使用 LRU HASH 防止幽灵表写满崩溃
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH); 
     __uint(max_entries, 1000000); 
@@ -51,15 +55,17 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
     if (!is_folio_relevant(folio)) return;
     bpf_cache_ext_list_add(main_list, folio); 
 
+    __u32 param_key = 0;
+    struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
+    if (!params) return;
+
     __u64 key = (__u64)folio;
     u8 initial_score = 0;
 
-    // 全局变量就像本地变量一样直接读！
-    if (current_params.p_ghost == 1) {
+    if (params->p_ghost == 1) {
         u8 *ghost = bpf_map_lookup_elem(&ghost_map, &key);
         if (ghost) {
             initial_score = 2; 
-            // LRU HASH 其实不删也行，但删掉能腾位置
             bpf_map_delete_elem(&ghost_map, &key); 
         }
     }
@@ -67,24 +73,23 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
-    // 【优化 3：短路防御】直接读全局配置，如果是瞎子，直接滚！0 开销。
-    if (current_params.p_access == 0) return; 
+    __u32 param_key = 0;
+    struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
+    if (!params || params->p_access == 0) return;
 
     __u64 key = (__u64)folio;
-    // 【极致优化】：先查元数据！元数据里没有，就说明绝对不是我们要管的目录，直接 return！
-    // 这样完美省去了 folio_mapping_host 的指针追逐和 inode_in_watchlist 的查表开销！
+    // 【优化保留：短路查表】如果 folio_meta_map 里没有，说明不是我们监控的文件，直接滚！省去极其耗时的底层指针查找！
     u8 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
     if (!score) return; 
 
-    if (current_params.p_access == 1) {
+    if (params->p_access == 1) {
         *score = 1; 
-    } else if (current_params.p_access == 2 && *score < 250) {
+    } else if (params->p_access == 2 && *score < 250) {
         *score += 1; 
     }
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
-    // 同样的短路优化，直接删，内核会自动忽略不存在的 key，极其省事！
     __u64 key = (__u64)folio;
     bpf_map_delete_elem(&folio_meta_map, &key);
 }
@@ -93,20 +98,23 @@ static int bpf_chameleon_evict_cb(int idx, struct cache_ext_list_node *a) {
     if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
     if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio)) return CACHE_EXT_CONTINUE_ITER;
 
+    __u32 param_key = 0;
+    struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
+    if (!params) return CACHE_EXT_EVICT_NODE;
+
     __u64 key = (__u64)a->folio;
     u8 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
     u8 current_score = score ? *score : 0;
 
-    // 直接使用 current_params，零查表开销
-    if (current_score > current_params.p_threshold) {
+    if (current_score > params->p_threshold) {
         if (score) {
-            if (current_params.p_access == 1) *score = 0;
-            else if (current_params.p_access == 2 && *score > 0) *score -= 1;
+            if (params->p_access == 1) *score = 0;
+            else if (params->p_access == 2 && *score > 0) *score -= 1;
         }
         return CACHE_EXT_CONTINUE_ITER; 
     }
 
-    if (current_params.p_ghost == 1) {
+    if (params->p_ghost == 1) {
         u8 dummy = 1;
         bpf_map_update_elem(&ghost_map, &key, &dummy, BPF_ANY);
     }

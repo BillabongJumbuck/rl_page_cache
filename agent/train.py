@@ -1,12 +1,45 @@
+# train.py - ChameleonEnv 的训练脚本，使用 Stable Baselines3 的 PPO 算法
 import os
-from xml.parsers.expat import model
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import BaseCallback
 
 # 导入我们打磨好的终极环境
 from core.env import ChameleonEnv
+
+# =====================================================================
+# 🌟 核心利器：自定义的“双端”检查点存档器
+# 同时保存 PPO 模型权重 (.zip) 和 环境归一化参数 (.pkl)
+# =====================================================================
+class DualCheckpointCallback(BaseCallback):
+    def __init__(self, save_freq: int, save_path: str, name_prefix: str = "chameleon_ppo_backup", verbose: int = 1):
+        super().__init__(verbose)
+        self.save_freq = save_freq
+        self.save_path = save_path
+        self.name_prefix = name_prefix
+
+    def _init_callback(self) -> None:
+        if self.save_path is not None:
+            os.makedirs(self.save_path, exist_ok=True)
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.save_freq == 0:
+            # 1. 组装文件名
+            model_path = os.path.join(self.save_path, f"{self.name_prefix}_{self.num_timesteps}_steps")
+            pkl_path = os.path.join(self.save_path, f"{self.name_prefix}_{self.num_timesteps}_steps_vecnormalize.pkl")
+            
+            # 2. 保存神经网络权重 (.zip)
+            self.model.save(model_path)
+            
+            # 3. 强制保存环境的统计数据 (.pkl)
+            if self.training_env is not None:
+                self.training_env.save(pkl_path)
+                
+            if self.verbose > 0:
+                print(f"\n[存档] 🛡️ 进度 {self.num_timesteps} 步: 模型与 pkl 已同步硬落盘！")
+        return True
+
 
 def main():
     # 1. 靶场参数 (探针已经在 train.fish 中由 C 程序接管，这里只需提供监控目录)
@@ -25,7 +58,7 @@ def main():
     check_env(env)
     print("环境体检通过！")
 
-   # ---------------------------------------------------------
+    # ---------------------------------------------------------
     # 3. 包装成向量化环境并开启【奖励归一化】(带记忆恢复版)
     # ---------------------------------------------------------
     vec_env = DummyVecEnv([lambda: env])
@@ -46,27 +79,27 @@ def main():
     # 4. 召唤 PPO 大脑 (增强视野版)
     # ---------------------------------------------------------
     print("初始化 PPO 神经网络模型...")
-    #model = PPO(
-    #    "MlpPolicy", 
-    #    vec_env, 
-    #    verbose=1,
-    #    learning_rate=2e-4,     # 稍微调低学习率，让长程训练更平滑
-    #    n_steps=256,            # 扩大视野：每收集 256 秒的经验才更新一次大脑
-    #    batch_size=64,          # 相应增大 Batch Size
-    #    ent_coef=0.01,          # 增加一点熵系数，鼓励它在漫长岁月里多尝试不同的参数组合
-    #    device="cpu", 
-    #    tensorboard_log="./logs/chameleon_tensorboard/"
-    #)
-
-    # 4a. 如果之前训练过，继续从上次的检查点恢复 (如果没有，就从头开始)
-    model = PPO.load(
-        "checkpoints/chameleon_ppo_backup_2000_steps.zip", 
-        env=vec_env,
-        tensorboard_log="./logs/chameleon_tensorboard/" 
+    model = PPO(
+       "MlpPolicy", 
+       vec_env, 
+       verbose=1,
+       learning_rate=2e-4,     # 稍微调低学习率，让长程训练更平滑
+       n_steps=256,            # 扩大视野：每收集 256 秒的经验才更新一次大脑
+       batch_size=64,          # 相应增大 Batch Size
+       ent_coef=0.01,          # 增加一点熵系数，鼓励它在漫长岁月里多尝试不同的参数组合
+       device="cpu", 
+       tensorboard_log="./logs/chameleon_tensorboard/"
     )
 
-    # 4b. 自动存档器：每 1000 步保存一次到 checkpoints 目录
-    checkpoint_callback = CheckpointCallback(
+    # 4a. 如果之前训练过，继续从上次的检查点恢复 (如果没有，就从头开始)
+    # model = PPO.load(
+    #     "checkpoints/chameleon_ppo_backup_2000_steps.zip", 
+    #     env=vec_env,
+    #     tensorboard_log="./logs/chameleon_tensorboard/" 
+    # )
+
+    # 4b. 使用我们刚才写的【双端存档器】，每 1000 步连同 pkl 一起保存！
+    checkpoint_callback = DualCheckpointCallback(
         save_freq=1000,
         save_path='./checkpoints/',
         name_prefix='chameleon_ppo_backup'
@@ -75,9 +108,9 @@ def main():
     # 5. 点火训练！
     print("🚀 开始闭环进化！请紧盯终端的 Loss 变化...")
     try:
-        # 将 timesteps 拉长到 50,000 步 (这大约需要运行 17 个小时，你可以随时 Ctrl+C 中断)
+        # 将 timesteps 拉长到 50,000 步
         model.learn(
-            total_timesteps=48000, 
+            total_timesteps=50000, 
             callback=checkpoint_callback, 
             progress_bar=True,
             reset_num_timesteps=False 
@@ -85,7 +118,7 @@ def main():
     except KeyboardInterrupt:
         print("\n收到中止信号，正在保存脑图...")
 
-    # 6. 保存模型权重与【环境归一化统计量】
+    # 6. 正常结束时，保存最终模型权重与【环境归一化统计量】
     model.save("checkpoints/chameleon_ppo_model")
     vec_env.save("checkpoints/vec_normalize.pkl") 
     print("模型和归一化参数已保存至 checkpoints 目录下！")

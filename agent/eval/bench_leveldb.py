@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# bench_leveldb.py - 变色龙 AI 的 LevelDB 评测脚本，支持 cml, lru, mg 三大核心策略
 import argparse
 import logging
 import os
@@ -8,6 +9,8 @@ import sys
 from contextlib import contextmanager, suppress
 from time import sleep
 from ruamel.yaml import YAML
+import json
+from datetime import datetime
 
 log = logging.getLogger(__name__)
 GiB = 2**30
@@ -96,6 +99,34 @@ def parse_leveldb_bench_results(stdout: str) -> dict:
                 elif "READ p99 latency" in match[0]: results["read_latency_p99_ns"] = float(match[1])
     return results
 
+def save_results(results: dict, policy: str, workload: str):
+    output_dir = "/home/messidor/rl_page_cache/agent/eval/output"
+    
+    # 如果目录不存在，自动创建它
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 生成时间戳，例如: 20260317_174530
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # 拼装文件名: cml_ycsb_c_20260317_174530.json
+    filename = f"{policy}_{workload}_{timestamp}.json"
+    filepath = os.path.join(output_dir, filename)
+    
+    # 顺手把实验的元数据也存进 JSON 里，方便以后画图溯源
+    export_data = {
+        "metadata": {
+            "policy": policy,
+            "workload": workload,
+            "timestamp": timestamp
+        },
+        "metrics": results
+    }
+    
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(export_data, f, indent=4)
+        
+    log.info(f"💾 战报已永久归档至: {filepath}")
+
 # ==========================================
 # 3. 变色龙生命周期管理器
 # ==========================================
@@ -109,35 +140,41 @@ class ChameleonPolicy:
         self.log_handle = None
 
     def start(self):
-        log.info("🦎 [空钩子模式] 仅唤醒变色龙物理骨架...")
+        log.info("🦎 正在唤醒变色龙 eBPF 探针与 PPO 大脑...")
         cgroup_path = f"/sys/fs/cgroup/{self.cgroup_name}"
         
-        # 【修改 1】：移除 -w 参数，因为它在空钩子 C 代码里已被删除
-        # 【修改 2】：不需要 DEVNULL，因为我们要确认它确实加载成功了
+        # 恢复 1：加回 -w 参数，并将 stdout 重定向到 DEVNULL 避免刷屏
         subprocess.Popen(
-            ["sudo", "./chameleon.out", "-c", cgroup_path], 
-            cwd=self.bpf_dir
+            ["sudo", "./chameleon.out", "-w", self.temp_db, "-c", cgroup_path], 
+            cwd=self.bpf_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
         sleep(2)
 
-        # 【修改 3】：彻底注释掉整个 Agent 启动逻辑
-        # 因为空钩子不产生数据，启动 daemon 会导致 log 报错并阻塞
-        log.info("🚫 Agent 守护进程已屏蔽，当前为纯物理开销测试模式")
+        # 恢复 2：解封 Agent，并配置好环境变量
+        env = os.environ.copy()
+        env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
+        # 告诉 AI 真正的 LevelDB 数据在哪个文件夹！
+        env["CHAMELEON_WATCH_DIR"] = self.temp_db
         
-        # env = os.environ.copy()
-        # env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
-        # env["CHAMELEON_WATCH_DIR"] = self.temp_db
-        # env["CHAMELEON_EXPERT_MODE"] = "0"
-        # self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
-        # subprocess.Popen(
-        #     ["uv", "run", "eval/inference_daemon.py"], 
-        #     cwd=self.agent_dir, stdout=self.log_handle, stderr=self.log_handle, env=env
-        # )
+        # 开启人类专家作弊模式（1 = 开启专家写死参数，0 = 开启 PPO AI 推理）
+        # 既然 AI 丢了 .pkl 发挥失常，我们先用 1 (专家模式) 来验证 BPF 极速版的真实威力！
+        env["CHAMELEON_EXPERT_MODE"] = "0" 
+        
+        self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
+        subprocess.Popen(
+            ["uv", "run", "eval/inference_daemon.py"], 
+            cwd=self.agent_dir, stdout=self.log_handle, stderr=self.log_handle, env=env
+        )
+        sleep(3)
 
     def stop(self):
-        log.info("🛑 正在回收空钩子探针...")
-        # 确保清理掉 chameleon 进程
+        log.info("🛑 正在切断变色龙神经连接...")
+        run(["sudo", "pkill", "-9", "-f", "inference_daemon.py"], check=False)
         run(["sudo", "pkill", "-9", "chameleon"], check=False)
+        if self.log_handle:
+            self.log_handle.close()
 
 # ==========================================
 # 4. 主控战场逻辑
@@ -208,6 +245,8 @@ def main():
         print(f"  👉 读延迟 (Avg):      {results.get('read_latency_avg_ns', 0) / 1000:.2f} us")
         print(f"  👉 读延迟 (P99):      {results.get('read_latency_p99_ns', 0) / 1000:.2f} us")
         print("="*50)
+
+        save_results(results, args.policy, args.workload)
 
     finally:
         log.info("🧹 打扫战场...")

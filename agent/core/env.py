@@ -1,8 +1,11 @@
+# env.py - ChameleonEnv: 变色龙 eBPF 强化学习沙盒环境 (终极 V3 成本敏感+对数平滑版)
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import subprocess
 import os
+import struct
+
 
 # 导入我们亲手打造的两大神器
 from .vfs_extractor import DamonVFSExtractor
@@ -145,12 +148,31 @@ class ChameleonEnv(gym.Env):
 
     def _apply_action_to_ebpf(self, action: np.ndarray):
         """调用 bpftool 下发变色龙策略"""
-        hex_values = []
-        for val in action:
-            hex_values.extend([f"{int(val):02x}", "00", "00", "00"])
-        value_hex_str = " ".join(hex_values)
+        # 1. 安全转换：处理负数异常，并确保强转为无符号 32 位整数的逻辑
+        # (注意：如果 RL 输出是 [-1, 1]，你必须在此之前将其映射到实际物理意义的值，比如 0 或 1)
+        safe_action = [int(val) & 0xFFFFFFFF for val in action]
+        
+        # 2. 极致严谨的内存打包：
+        # "<5I" 代表：小端序 (Little-Endian)，5 个 Unsigned Int (32-bit)
+        # 这完美对应了 C 语言里面的 struct rl_params
+        packed_bytes = struct.pack("<5I", *safe_action)
+        
+        # 3. 转换为 bpftool 认识的绝对标准的十六进制字符串 (例如: "01 00 00 00 00 00 ...")
+        value_hex_str = " ".join(f"{b:02x}" for b in packed_bytes)
+        
         cmd = f"sudo bpftool map update id {self.map_id} key hex 00 00 00 00 value hex {value_hex_str}"
-        subprocess.run(cmd.split(), capture_output=True, check=False)
+        
+        # 4. 强硬执行：如果更新失败，必须暴露出来，绝对不能静默！
+        try:
+            # check=True 会在命令失败时抛出异常
+            subprocess.run(cmd.split(), capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ 致命错误: bpftool 更新 Map 失败!")
+            print(f"执行命令: {cmd}")
+            print(f"错误信息: {e.stderr}")
+            # 根据你的容错要求，这里可以抛出异常，也可以选择跳过
+            raise e 
+            
         self.current_action = action
 
     def reset(self, seed=None, options=None):

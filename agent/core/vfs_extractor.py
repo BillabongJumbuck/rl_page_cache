@@ -95,6 +95,7 @@ class DamonVFSExtractor:
 if __name__ == "__main__":
     import sys
     test_pid = int(sys.argv[1]) if len(sys.argv) > 1 else os.getpid()
+    # test_pid = 56877
     
     print(f"正在通过 VFS 提取 PID {test_pid} 的特征，时长 1.0 秒...")
     extractor = DamonVFSExtractor(target_pid=test_pid)

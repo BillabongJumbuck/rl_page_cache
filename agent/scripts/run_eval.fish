@@ -1,5 +1,5 @@
 #!/usr/bin/env fish
-# 变色龙通用评测发射器
+# 变色龙通用评测发射器 (V3 架构版)
 
 # 注册终极清理钩子：无视任何意外，强行打扫战场
 function cleanup_battlefield --on-event fish_exit --on-signal SIGINT
@@ -8,10 +8,9 @@ function cleanup_battlefield --on-event fish_exit --on-signal SIGINT
     echo "============================================"
     sudo pkill -9 -f fio 2>/dev/null
     sudo pkill -9 -f inference_daemon.py 2>/dev/null
-    sudo pkill -9 cache_ext_reuse 2>/dev/null
     sudo pkill -9 chameleon 2>/dev/null
     sudo swapon -a 2>/dev/null
-    echo "评测完成！AI 思考记录已保存至 logs/ai_decisions_log.csv"
+    echo "评测完成！"
     exit 0
 end
 
@@ -38,7 +37,6 @@ echo "  [1/4] 清理战场与 Cgroup 隔离舱准备"
 echo "============================================"
 sudo -v
 sudo swapoff -a
-sudo pkill -9 cache_ext_reuse 2>/dev/null
 sudo pkill -9 chameleon 2>/dev/null
 
 sudo mkdir -p $CGROUP_DIR
@@ -49,15 +47,19 @@ echo "============================================"
 echo "  [2/4] 唤醒底盘探针与 AI 决策大脑"
 echo "============================================"
 cd $BPF_DIR
-sudo ./cache_ext_reuse.out -w /tmp/bpf_test &
-sudo ./chameleon.out -w /tmp/bpf_test -c $CGROUP_DIR &
+# 将输出重定向到黑洞，保持纯净后台
+sudo ./chameleon.out -w /tmp/bpf_test -c $CGROUP_DIR > /dev/null 2>&1 &
 cd - > /dev/null
 sleep 3
+
+# 设置供 AI 守护进程读取的环境变量
+set -x CHAMELEON_WATCH_DIR /tmp/bpf_test
+set -x CHAMELEON_EXPERT_MODE 0
 
 # 启动脱钩的 AI 守护进程，并在后台静默运行
 uv run eval/inference_daemon.py > logs/daemon_stdout.log 2>&1 &
 set AI_PID (jobs -p | tail -n 1)
-echo ">>> AI 大脑已启动 (PID: $AI_PID)，正在监控环境..."
+echo ">>> AI 大脑已启动 (PID: $AI_PID)，正在后台监控环境..."
 
 echo "============================================"
 echo "  [3/4] 注入目标负载: $WORKLOAD_SCRIPT"
@@ -69,11 +71,6 @@ sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
 sudo sh -c "echo \$\$ > $CGROUP_DIR/cgroup.procs && exec $WORKLOAD_SCRIPT"
 
 echo "============================================"
-echo "  [4/4] 负载结束，回收进程"
+echo "  [4/4] 负载结束，触发自动回收"
 echo "============================================"
-kill $AI_PID 2>/dev/null
-sudo pkill -9 cache_ext_reuse 2>/dev/null
-sudo pkill -9 chameleon 2>/dev/null
-sudo swapon -a
-
-echo "评测完成！AI 的完整思考记录已保存至 logs/ai_decisions_log.csv"
+# 脚本自然结束时，顶部的 fish_exit 钩子会自动触发完整的战场清理
