@@ -1,3 +1,4 @@
+// cache_ext_reuse.bpf.c - 基于 BPF 的页面缓存扩展对象重用监控程序
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>

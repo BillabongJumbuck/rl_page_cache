@@ -1,3 +1,4 @@
+// chameleon.c - Chameleon (变色龙) BPF 用户空间加载器
 #include <argp.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -8,6 +9,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+
+struct rl_params {
+    __u32 p_access;
+    __u32 p_direction;
+    __u32 p_threshold;
+    __u32 p_survival;
+    __u32 p_ghost;
+};
+
 #include "chameleon.skel.h"
 #include "dir_watcher.h"
 
@@ -45,40 +55,47 @@ int main(int argc, char **argv) {
     if (cgroup_fd < 0) return 1;
 
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+    
+    // 1. 打开骨架
     skel = chameleon_bpf__open();
     if (!skel) goto cleanup;
 
+    // 2. 注入只读数据 (rodata 必须在 load 之前设置)
     skel->rodata->watch_dir_path_len = strlen(watch_dir_full_path);
     strcpy(skel->rodata->watch_dir_path, watch_dir_full_path);
 
+    // 3. 加载到内核
     if (chameleon_bpf__load(skel)) goto cleanup;
 
-    // 默认注入 FIFO 策略 [0, 0, 0, 0, 0]
-    __u32 map_key = 0;
-    struct { __u32 p1, p2, p3, p4, p5; } params = {0, 0, 0, 0, 0};
-    bpf_map_update_elem(bpf_map__fd(skel->maps.cml_params_map), &map_key, &params, BPF_ANY);
+    // 4. 【极致优化的参数下发】直接操作 mmap 映射的 BSS 段内存，0 查表开销！
+    skel->bss->current_params.p_access = 0;
+    skel->bss->current_params.p_direction = 0;
+    skel->bss->current_params.p_threshold = 0;
+    skel->bss->current_params.p_survival = 0;
+    skel->bss->current_params.p_ghost = 0;
 
+    // 5. 初始化目录监控
     initialize_watch_dir_map(args.watch_dir, bpf_map__fd(skel->maps.inode_watchlist), false);
 
+    // 6. 挂载探针
     link = bpf_map__attach_cache_ext_ops(skel->maps.chameleon_ops, cgroup_fd);
     if (!link) goto cleanup;
 
     printf("Chameleon (变色龙) Policy successfully loaded!\n");
-    printf("Initial mode: FIFO (0,0,0,0,0)\n");
-    printf("Press any key to detach and exit...\n");
-    // 【关键修复】注册信号并用死循环 + pause 挂起进程
+    printf("Initial mode: FIFO (0,0,0,0,0) with Zero-Copy BSS variables.\n");
+    printf("Daemon is running in background. Send SIGTERM to exit...\n");
+    
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     
-    printf("Daemon is running in background. Send SIGTERM to exit.\n");
     while (!exiting) {
-        pause(); // 将进程挂起，直到收到信号，完美释放 CPU
+        pause(); 
     }
     
     ret = 0;
 
 cleanup:
-    close(cgroup_fd);
+    if (cgroup_fd >= 0) close(cgroup_fd);
     bpf_link__destroy(link);
     chameleon_bpf__destroy(skel);
     return ret;

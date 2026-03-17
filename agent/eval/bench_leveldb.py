@@ -109,38 +109,35 @@ class ChameleonPolicy:
         self.log_handle = None
 
     def start(self):
-        log.info("🦎 正在唤醒变色龙 eBPF 探针与 PPO 大脑...")
+        log.info("🦎 [空钩子模式] 仅唤醒变色龙物理骨架...")
         cgroup_path = f"/sys/fs/cgroup/{self.cgroup_name}"
         
-        # subprocess.Popen(["sudo", "./cache_ext_reuse.out", "-w", self.temp_db], cwd=self.bpf_dir)
+        # 【修改 1】：移除 -w 参数，因为它在空钩子 C 代码里已被删除
+        # 【修改 2】：不需要 DEVNULL，因为我们要确认它确实加载成功了
         subprocess.Popen(
-            ["sudo", "./chameleon.out", "-w", self.temp_db, "-c", cgroup_path], 
-            cwd=self.bpf_dir,
-            stdout=subprocess.DEVNULL,  # 强制静音
-            stderr=subprocess.DEVNULL)
+            ["sudo", "./chameleon.out", "-c", cgroup_path], 
+            cwd=self.bpf_dir
+        )
         sleep(2)
 
-        env = os.environ.copy()
-        env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
-        # 1. 告诉 AI 真正的 LevelDB 数据在哪个文件夹！
-        env["CHAMELEON_WATCH_DIR"] = self.temp_db
-        # 2. 开启人类专家作弊模式（1 = 开启，0 = 关闭并使用 AI）
-        env["CHAMELEON_EXPERT_MODE"] = "0"
+        # 【修改 3】：彻底注释掉整个 Agent 启动逻辑
+        # 因为空钩子不产生数据，启动 daemon 会导致 log 报错并阻塞
+        log.info("🚫 Agent 守护进程已屏蔽，当前为纯物理开销测试模式")
         
-        self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
-        subprocess.Popen(
-            ["uv", "run", "eval/inference_daemon.py"], 
-            cwd=self.agent_dir, stdout=self.log_handle, stderr=self.log_handle, env=env
-        )
-        sleep(3)
+        # env = os.environ.copy()
+        # env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
+        # env["CHAMELEON_WATCH_DIR"] = self.temp_db
+        # env["CHAMELEON_EXPERT_MODE"] = "0"
+        # self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
+        # subprocess.Popen(
+        #     ["uv", "run", "eval/inference_daemon.py"], 
+        #     cwd=self.agent_dir, stdout=self.log_handle, stderr=self.log_handle, env=env
+        # )
 
     def stop(self):
-        log.info("🛑 正在切断变色龙神经连接...")
-        run(["sudo", "pkill", "-9", "-f", "inference_daemon.py"], check=False)
-        # run(["sudo", "pkill", "-9", "cache_ext_reuse"], check=False)
+        log.info("🛑 正在回收空钩子探针...")
+        # 确保清理掉 chameleon 进程
         run(["sudo", "pkill", "-9", "chameleon"], check=False)
-        if self.log_handle:
-            self.log_handle.close()
 
 # ==========================================
 # 4. 主控战场逻辑
