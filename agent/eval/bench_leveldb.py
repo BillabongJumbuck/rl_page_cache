@@ -122,6 +122,10 @@ class ChameleonPolicy:
 
         env = os.environ.copy()
         env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
+        # 1. 告诉 AI 真正的 LevelDB 数据在哪个文件夹！
+        env["CHAMELEON_WATCH_DIR"] = self.temp_db
+        # 2. 开启人类专家作弊模式（1 = 开启，0 = 关闭并使用 AI）
+        env["CHAMELEON_EXPERT_MODE"] = "0"
         
         self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
         subprocess.Popen(
