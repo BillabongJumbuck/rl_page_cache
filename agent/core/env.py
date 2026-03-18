@@ -1,17 +1,18 @@
-# env.py - ChameleonEnv: 变色龙 eBPF 强化学习沙盒环境 (终极 V4 降维纯净版)
+# env.py - ChameleonEnv: 变色龙 eBPF 强化学习沙盒环境 (终极 V5 纯 eBPF 物理视角版)
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import subprocess
 import os
 import struct
+import time
 
-from .vfs_extractor import DamonVFSExtractor
-from .ebpf_extractor import EbpfReuseExtractor
+# 全面抛弃 DAMON，拥抱全能的 eBPF 提取器
+from .ebpf_extractor import EbpfStateExtractor
 
 class ChameleonEnv(gym.Env):
     """
-    AI for OS: 变色龙 eBPF 强化学习沙盒环境 (终极 V4 降维纯净版)
+    AI for OS: 变色龙 eBPF 强化学习沙盒环境 (终极 V5 纯 eBPF 物理视角版)
     """
     def __init__(self, target_pid: int, cgroup_path: str):
         super(ChameleonEnv, self).__init__()
@@ -25,28 +26,28 @@ class ChameleonEnv(gym.Env):
         print(f"[Env] 雷达成功锁定变色龙控制平面! ID: {self.map_id}")
 
         # ==========================================
-        # 1. 动作空间: 彻底降维至 4 个旋钮
+        # 1. 动作空间: 4 个核心旋钮
         # ==========================================
         # [访问计分, 热区百分比, 晋升门槛, 幽灵开关]
         self.action_space = spaces.MultiDiscrete([3, 101, 4, 2])
         self.current_action = np.zeros(4, dtype=np.float32)
         
         # ==========================================
-        # 2. 状态空间: 14 维终极向量 (移除了多余的 action 占位)
+        # 2. 状态空间: 14 维终极物理向量
         # ==========================================
         # 0: log1p(WSS_MiB)
         # 1-3: Cold%, Warm%, Hot%
         # 4-5: log1p(Reuse_Count), log1p(Avg_Distance)
         # 6-7: log1p(Minor_Faults), log1p(Major_Faults)
-        # 8-11: Action_1 到 Action_4 (归一化到 0~1 的当前自身状态)
+        # 8-11: Action_1 到 Action_4 (归一化自身状态)
         # 12-13: 痛觉加速度 (Minor Acceleration, Major Acceleration)
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(14,), dtype=np.float32 
         )
         
-        print("[Env] 正在挂载 DAMON 宏观雷达与 eBPF 微观显微镜...")
-        self.damon_extractor = DamonVFSExtractor(target_pid)
-        self.ebpf_extractor = EbpfReuseExtractor(cgroup_path)
+        print("[Env] 正在挂载 eBPF 全知上帝之眼...")
+        # 只需要实例化这一个强大的提取器即可
+        self.extractor = EbpfStateExtractor(cgroup_path)
         
         self.prev_min_flt = 0
         self.prev_maj_flt = 0
@@ -68,23 +69,8 @@ class ChameleonEnv(gym.Env):
             pass
         return pgfault, pgmajfault
 
-    def _get_active_target_pid(self, process_names=["fio", "ycsb"]):
-        import time 
-        for _ in range(10):
-            for name in process_names:
-                try:
-                    pids = subprocess.check_output(["pidof", name]).decode().strip().split()
-                    if pids:
-                        self.target_pid = int(pids[0])
-                        return self.target_pid
-                except subprocess.CalledProcessError:
-                    continue
-            time.sleep(0.1)
-        return os.getpid()
-
     def _find_bpf_map_id(self, target_name: str) -> int | None:
         import json
-        import subprocess
         truncated_name = target_name[:15] 
         try:
             result = subprocess.run(["sudo", "bpftool", "map", "list", "-j"], capture_output=True, text=True, check=True)
@@ -97,19 +83,22 @@ class ChameleonEnv(gym.Env):
             print(f"查找 Map ID 失败: {e}")
         return None
 
-    def _build_observation(self, damon_state, ebpf_state, delta_min, delta_maj) -> np.ndarray:
+    def _build_observation(self, macro_state, micro_state, delta_min, delta_maj) -> np.ndarray:
         obs = np.zeros(14, dtype=np.float32)
         
-        obs[0] = np.log1p(damon_state[0]) 
-        obs[1:4] = damon_state[1:4] 
+        # [0-3] eBPF 宏观物理拓扑 (零延迟、零死角)
+        obs[0] = np.log1p(macro_state[0]) 
+        obs[1:4] = macro_state[1:4] 
         
-        obs[4] = np.log1p(ebpf_state[0] * 1000.0) 
-        obs[5] = np.log1p(ebpf_state[1] * 1000.0)
+        # [4-5] eBPF 微观重用特征
+        obs[4] = np.log1p(micro_state[0] * 1000.0) 
+        obs[5] = np.log1p(micro_state[1] * 1000.0)
         
+        # [6-7] 系统痛觉
         obs[6] = np.log1p(delta_min)
         obs[7] = np.log1p(delta_maj)
         
-        # [8-11] 自身状态感知 (修正归一化分母：动作2最大值为100)
+        # [8-11] 自身动作感知
         max_actions = np.array([2.0, 100.0, 3.0, 1.0], dtype=np.float32)
         safe_max = np.where(max_actions == 0, 1.0, max_actions) 
         obs[8:12] = self.current_action / safe_max
@@ -122,11 +111,8 @@ class ChameleonEnv(gym.Env):
 
     def _apply_action_to_ebpf(self, action: np.ndarray):
         safe_action = [int(val) & 0xFFFFFFFF for val in action]
-        
-        # 改为 <4I，打包 4 个 32位整数
         packed_bytes = struct.pack("<4I", *safe_action)
         value_hex_str = " ".join(f"{b:02x}" for b in packed_bytes)
-        
         cmd = f"sudo bpftool map update id {self.map_id} key hex 00 00 00 00 value hex {value_hex_str}"
         
         try:
@@ -145,41 +131,38 @@ class ChameleonEnv(gym.Env):
         self.prev_delta_min = 0.0
         self.prev_delta_maj = 0.0
         
-        # 重置出厂设置 [0, 0, 0, 0]
         self._apply_action_to_ebpf(np.zeros(4, dtype=int))
-        
         self.prev_min_flt, self.prev_maj_flt = self._get_vmstat()
-        current_target_pid = self._get_active_target_pid()
-        self.damon_extractor.target_pid = current_target_pid
 
-        damon_state = self.damon_extractor.get_current_state(duration=1.0)
-        ebpf_state = self.ebpf_extractor.get_step_stats()
+        # 直接从 eBPF 提取微观和宏观物理状态
+        micro_state = self.extractor.get_micro_state()
+        macro_state = self.extractor.get_macro_state()
         
-        obs = self._build_observation(damon_state, ebpf_state, 0, 0)
+        obs = self._build_observation(macro_state, micro_state, 0, 0)
         return obs, {}
 
     def step(self, action):
         self._apply_action_to_ebpf(action)
-        
         pre_min, pre_maj = self._get_vmstat()
-        current_target_pid = self._get_active_target_pid()
-        self.damon_extractor.target_pid = current_target_pid
         
-        damon_state = self.damon_extractor.get_current_state(duration=1.0)
-        ebpf_state = self.ebpf_extractor.get_step_stats()
+        # 物理阻塞 1 秒，让子弹飞 (代替了原先 DAMON 脚本里的 duration)
+        time.sleep(1.0)
+        
+        # 提取 eBPF 物理状态
+        micro_state = self.extractor.get_micro_state()
+        macro_state = self.extractor.get_macro_state()
         
         post_min, post_maj = self._get_vmstat()
         delta_min = max(0, post_min - pre_min)
         delta_maj = max(0, post_maj - pre_maj)
         
-        obs = self._build_observation(damon_state, ebpf_state, delta_min, delta_maj)
+        obs = self._build_observation(macro_state, micro_state, delta_min, delta_maj)
         
+        # 注意：因为废弃了高开销的 DAMON，去掉了 DAMON 相关的开销惩罚
         base_penalty = - (np.log1p(delta_maj) * 5.0 + np.log1p(delta_min) * 0.5)
         
         overhead_penalty = 0.0
-        overhead_penalty -= (action[0] * 0.5)
-        # 幽灵表开关现在是索引 3
-        if action[3] == 1:
+        if action[3] == 1: # 幽灵表内存开销惩罚
             overhead_penalty -= 1.0
             
         reward = base_penalty + overhead_penalty
@@ -193,7 +176,6 @@ class ChameleonEnv(gym.Env):
         return obs, reward, terminated, False, {}
 
 if __name__ == "__main__":  
-    import time
     print("🚀 启动 Chameleon 沙盒环境集成测试...")
     
     env = ChameleonEnv(
@@ -206,11 +188,7 @@ if __name__ == "__main__":
     np.set_printoptions(precision=4, suppress=True)
     print(f"✅ Reset 成功! 初始状态向量 (14维):\n{obs}")
     
-    print("\n[2/3] 等待 1 秒，模拟 RL 推理延迟...")
-    time.sleep(1)
-    
-    print("\n[3/3] 测试环境 Step (下发全 0 动作)...")
-    # 降维后下发 4 个 0
+    print("\n[2/3] 测试环境 Step (下发全 0 动作)...")
     action = np.zeros(4, dtype=int)
     obs, reward, terminated, truncated, info = env.step(action)
     
@@ -218,6 +196,4 @@ if __name__ == "__main__":
     print(f"🔹 新状态向量:\n{obs}")
     print(f"🔹 获得 Reward: {reward:.4f}")
     
-    # 优雅退出
-    env.ebpf_extractor.cleanup()
-    
+    env.extractor.cleanup()

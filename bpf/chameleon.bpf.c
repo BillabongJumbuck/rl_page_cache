@@ -49,6 +49,14 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
+
+    // 【调试】获取当前进程的 PID 和 Cgroup ID
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u64 cg_id = bpf_get_current_cgroup_id();
+    
+    // 强制打印，不带任何 if 过滤
+    bpf_printk("CML_DEBUG: Added folio %p, PID: %u, CG_ID: %llu\n", folio, pid, cg_id);
+    
     // 1. 所有新数据，无脑进入冷链表 (Probation List)
     bpf_cache_ext_list_add(probation_list, folio); 
 
@@ -109,7 +117,23 @@ static int bpf_chameleon_evict_cb(int idx, struct cache_ext_list_node *a) {
     if (!params) return CACHE_EXT_EVICT_NODE;
 
     __u64 key = (__u64)a->folio;
+    u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
+
+    // 【上帝之眼降临】：主动去查硬件 PTE 是否被偷偷访问过！
+    int hw_refs = bpf_folio_check_referenced(a->folio);
     
+    if (hw_refs > 0) {
+        // 抓到你了！mmap 在硬件层偷偷摸了这个页面
+        if (score) {
+            __sync_fetch_and_add(score, hw_refs); // 把漏掉的分数补上
+        } else {
+            u32 init_score = hw_refs;
+            bpf_map_update_elem(&folio_meta_map, &key, &init_score, BPF_ANY);
+        }
+        // 既然刚刚被访问过，直接免死一次，留在内存里！
+        return CACHE_EXT_CONTINUE_ITER; 
+    }
+
     // 留下幽灵印记
     if (params->p_ghost == 1) {
         u8 dummy = 1;
