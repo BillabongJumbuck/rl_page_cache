@@ -224,6 +224,7 @@ class ChameleonEnv(gym.Env):
         
         # 6. 组装 15 维终极状态向量
         obs = self._build_observation(damon_state, ebpf_state, delta_min, delta_maj)
+        # print("[Debug] 当前状态向量:", obs)
         
         # ==========================================
         # 7. 灵魂设计：Reward 函数 (V3 终极版：对数平滑 + 成本意识)

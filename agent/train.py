@@ -64,7 +64,7 @@ def main():
     vec_env = DummyVecEnv([lambda: env])
     
     # 检查是否有历史环境尺度存档，如果有，必须加载！
-    normalize_path = "checkpoints/vec_normalize.pkl"
+    normalize_path = "checkpoints/chameleon_ppo_backup_28000_steps_vecnormalize.pkl"
     if os.path.exists(normalize_path):
         print(f"📦 发现历史环境尺度存档，正在恢复...")
         vec_env = VecNormalize.load(normalize_path, vec_env)
@@ -79,24 +79,24 @@ def main():
     # 4. 召唤 PPO 大脑 (增强视野版)
     # ---------------------------------------------------------
     print("初始化 PPO 神经网络模型...")
-    model = PPO(
-       "MlpPolicy", 
-       vec_env, 
-       verbose=1,
-       learning_rate=2e-4,     # 稍微调低学习率，让长程训练更平滑
-       n_steps=256,            # 扩大视野：每收集 256 秒的经验才更新一次大脑
-       batch_size=64,          # 相应增大 Batch Size
-       ent_coef=0.01,          # 增加一点熵系数，鼓励它在漫长岁月里多尝试不同的参数组合
-       device="cpu", 
-       tensorboard_log="./logs/chameleon_tensorboard/"
-    )
+    # model = PPO(
+    #    "MlpPolicy", 
+    #    vec_env, 
+    #    verbose=1,
+    #    learning_rate=2e-4,     # 稍微调低学习率，让长程训练更平滑
+    #    n_steps=256,            # 扩大视野：每收集 256 秒的经验才更新一次大脑
+    #    batch_size=64,          # 相应增大 Batch Size
+    #    ent_coef=0.01,          # 增加一点熵系数，鼓励它在漫长岁月里多尝试不同的参数组合
+    #    device="cpu", 
+    #    tensorboard_log="./logs/chameleon_tensorboard/"
+    # )
 
     # 4a. 如果之前训练过，继续从上次的检查点恢复 (如果没有，就从头开始)
-    # model = PPO.load(
-    #     "checkpoints/chameleon_ppo_backup_2000_steps.zip", 
-    #     env=vec_env,
-    #     tensorboard_log="./logs/chameleon_tensorboard/" 
-    # )
+    model = PPO.load(
+        "checkpoints/chameleon_ppo_backup_28000_steps.zip", 
+        env=vec_env,
+        tensorboard_log="./logs/chameleon_tensorboard/" 
+    )
 
     # 4b. 使用我们刚才写的【双端存档器】，每 1000 步连同 pkl 一起保存！
     checkpoint_callback = DualCheckpointCallback(
@@ -110,7 +110,7 @@ def main():
     try:
         # 将 timesteps 拉长到 50,000 步
         model.learn(
-            total_timesteps=50000, 
+            total_timesteps=22000, 
             callback=checkpoint_callback, 
             progress_bar=True,
             reset_num_timesteps=False 
