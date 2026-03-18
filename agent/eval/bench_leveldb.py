@@ -159,8 +159,7 @@ class ChameleonPolicy:
         env["CHAMELEON_CGROUP_PATH"] = cgroup_path
         
         # 开启人类专家作弊模式（1 = 开启专家写死参数，0 = 开启 PPO AI 推理）
-        # 既然 AI 丢了 .pkl 发挥失常，我们先用 1 (专家模式) 来验证 BPF 极速版的真实威力！
-        env["CHAMELEON_EXPERT_MODE"] = "0" 
+        env["CHAMELEON_EXPERT_MODE"] = "1" 
         
         self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
         subprocess.Popen(

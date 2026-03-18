@@ -25,7 +25,7 @@ def main():
 
     # 2. 包装并加载归一化参数
     vec_env = DummyVecEnv([lambda: env])
-    pkl_path = "checkpoints/vec_normalize.pkl"
+    pkl_path = "checkpoints/chameleon_ppo_backup_10000_steps_vecnormalize.pkl"
     if os.path.exists(pkl_path):
         print(">>> 发现归一化参数，正在同步环境尺度...")
         vec_env = VecNormalize.load(pkl_path, vec_env)
@@ -40,7 +40,7 @@ def main():
     
     model = None
     if not is_expert_mode:
-        model_path = "checkpoints/chameleon_ppo_backup_32000_steps.zip"
+        model_path = "checkpoints/chameleon_ppo_backup_10000_steps.zip"
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"找不到模型文件 {model_path}！")
         print(f"正在加载神经网络: {model_path}...")
@@ -64,7 +64,7 @@ def main():
                     # 【填入你的纯读防御神级参数】
                     # 请根据你的动作空间调整！例如：拉满 ghost 概率，降低 threshold 门槛
                     # 这里假设动作空间支持这种数值，请根据你实际的 action_space 修改
-                    expert_action = [0, 0, 3, 0, 1]
+                    expert_action = [2, 70, 2, 1]
                     action = np.array([expert_action], dtype=np.float32)
                 else:
                     action, _ = model.predict(obs, deterministic=True)
