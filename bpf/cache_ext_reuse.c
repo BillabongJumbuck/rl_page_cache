@@ -1,43 +1,32 @@
-// cache_ext_reuse.c - 监控页面缓存扩展对象重用的用户空间程序
+// cache_ext_reuse.c
 #include <argp.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
-#include <fcntl.h>
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
-
-// 这个头文件是 Makefile 稍后会自动帮你生成的！
 #include "cache_ext_reuse.skel.h"
-#include "dir_watcher.h"
 
 static volatile bool exiting = false;
+static void sig_handler(int sig) { exiting = true; }
 
-static void sig_handler(int sig) {
-    exiting = true;
-}
-
-struct cmdline_args {
-    char *watch_dir;
-};
+struct cmdline_args { char *cgroup_path; };
 
 static struct argp_option options[] = { 
-    { "watch_dir", 'w', "DIR", 0, "Directory to watch" },
+    { "cgroup_path", 'c', "PATH", 0, "Path to cgroup v2 directory" },
     { 0 } 
 };
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     struct cmdline_args *args = state->input;
-    if (key == 'w') args->watch_dir = arg;
+    if (key == 'c') args->cgroup_path = arg;
     else return ARGP_ERR_UNKNOWN;
     return 0;
 }
 
-// 必须和刚才内核里的结构体完全对齐
+// 结构体对齐
 struct reuse_stats {
     __u64 count;
     __u64 sum;
@@ -47,55 +36,32 @@ struct reuse_stats {
 
 int main(int argc, char **argv) {
     struct cache_ext_reuse_bpf *skel = NULL;
-    int ret = 1;
-
     struct cmdline_args args = { 0 };
     struct argp argp = { options, parse_opt, 0, 0 };
     argp_parse(&argp, argc, argv, 0, 0, &args);
 
-    if (!args.watch_dir) {
-        fprintf(stderr, "Usage: %s --watch_dir <DIR>\n", argv[0]);
+    if (!args.cgroup_path) {
+        fprintf(stderr, "Usage: %s -c <cgroup_v2_path>\n", argv[0]);
         return 1;
     }
 
-    char watch_dir_full_path[PATH_MAX];
-    if (realpath(args.watch_dir, watch_dir_full_path) == NULL) {
-        perror("realpath");
+    // 获取 cgroup ID (通过 stat 获取目录 inode number)
+    struct stat st;
+    if (stat(args.cgroup_path, &st) < 0) {
+        perror("Failed to stat cgroup path");
         return 1;
     }
+    __u64 cgroup_id = st.st_ino;
 
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-
-    // 1. 打开 eBPF 骨架
     skel = cache_ext_reuse_bpf__open();
-    if (!skel) {
-        fprintf(stderr, "Failed to open BPF skeleton\n");
-        goto cleanup;
-    }
+    if (!skel) return 1;
 
-    // 2. 注入目录白名单路径
-    skel->rodata->watch_dir_path_len = strlen(watch_dir_full_path);
-    strcpy(skel->rodata->watch_dir_path, watch_dir_full_path);
+    // 注入 cgroup ID 到 BPF rodata
+    skel->rodata->target_cgroup_id = cgroup_id;
 
-    // 3. 验证并加载字节码到内核
-    if (cache_ext_reuse_bpf__load(skel)) {
-        fprintf(stderr, "Failed to load BPF skeleton\n");
-        goto cleanup;
-    }
-
-    // 4. 解析目录 Inode 并写入白名单 Map
-    ret = initialize_watch_dir_map(args.watch_dir, 
-                                   bpf_map__fd(skel->maps.inode_watchlist), false);
-    if (ret) {
-        fprintf(stderr, "Failed to initialize watch dir map\n");
-        goto cleanup;
-    }
-
-    // 5. 挂载 fentry 探针到内核原生函数
-    if (cache_ext_reuse_bpf__attach(skel)) {
-        fprintf(stderr, "Failed to attach BPF skeleton\n");
-        goto cleanup;
-    }
+    if (cache_ext_reuse_bpf__load(skel)) goto cleanup;
+    if (cache_ext_reuse_bpf__attach(skel)) goto cleanup;
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
@@ -104,21 +70,18 @@ int main(int argc, char **argv) {
     __u32 key = 0;
     struct reuse_stats stats;
 
-    fprintf(stderr, "Reuse Tracker started. Outputting JSON to stdout...\n");
+    fprintf(stderr, "Reuse Tracker attached to cgroup_id: %llu\n", cgroup_id);
 
-    // 6. RL Agent 数据管道输出循环
     while (!exiting) {
         sleep(1);
         if (bpf_map_lookup_elem(map_fd, &key, &stats) == 0) {
-            // 直接输出 JSON，供 Python 脚本的 subprocess 截获解析
             printf("{\"count\": %llu, \"sum\": %llu, \"sum_sq\": %llu, \"seq\": %llu}\n", 
                    stats.count, stats.sum, stats.sum_sq, stats.global_seq);
             fflush(stdout);
         }
     }
 
-    ret = 0;
 cleanup:
     cache_ext_reuse_bpf__destroy(skel);
-    return ret;
+    return 0;
 }

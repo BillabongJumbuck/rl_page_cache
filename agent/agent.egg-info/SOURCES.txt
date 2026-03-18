@@ -9,4 +9,5 @@ core/__init__.py
 core/ebpf_extractor.py
 core/env.py
 core/vfs_extractor.py
+eval/bench_leveldb.py
 eval/inference_daemon.py

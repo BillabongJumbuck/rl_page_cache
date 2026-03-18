@@ -44,13 +44,12 @@ class DualCheckpointCallback(BaseCallback):
 def main():
     # 1. 靶场参数 (探针已经在 train.fish 中由 C 程序接管，这里只需提供监控目录)
     TARGET_PID = os.getpid()  # 雷达会自动去抓 fio 的真 PID，这里给个自己的防闪退
-    WATCH_DIR = "/tmp/bpf_test"
+    CGROUP_PATH = "/sys/fs/cgroup/chameleon_train"
 
     print("正在实例化 Chameleon eBPF 强化学习环境...")
     env = ChameleonEnv(
         target_pid=TARGET_PID, 
-        watch_dir=WATCH_DIR, 
-        bpf_exec_path="" # 留空，探针已经在外面跑起来了
+        cgroup_path=CGROUP_PATH
     )
 
     # 2. 严苛的环境体检

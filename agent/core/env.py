@@ -7,7 +7,6 @@ import os
 import struct
 
 
-# 导入我们亲手打造的两大神器
 from .vfs_extractor import DamonVFSExtractor
 from .ebpf_extractor import EbpfReuseExtractor
 
@@ -15,7 +14,7 @@ class ChameleonEnv(gym.Env):
     """
     AI for OS: 变色龙 eBPF 强化学习沙盒环境 (终极 V3 成本敏感+对数平滑版)
     """
-    def __init__(self, target_pid: int, watch_dir: str, bpf_exec_path: str):
+    def __init__(self, target_pid: int, cgroup_path: str):
         super(ChameleonEnv, self).__init__()
         
         self.target_pid = target_pid
@@ -51,7 +50,7 @@ class ChameleonEnv(gym.Env):
         # 初始化双子星提取器
         print("[Env] 正在挂载 DAMON 宏观雷达与 eBPF 微观显微镜...")
         self.damon_extractor = DamonVFSExtractor(target_pid)
-        self.ebpf_extractor = EbpfReuseExtractor(watch_dir, bpf_exec_path)
+        self.ebpf_extractor = EbpfReuseExtractor(cgroup_path)
         
         # 内部状态记录
         self.prev_min_flt = 0
@@ -252,3 +251,36 @@ class ChameleonEnv(gym.Env):
         terminated = self.current_step >= self.max_steps
         
         return obs, reward, terminated, False, {}
+
+if __name__ == "__main__":  
+    import time
+    print("🚀 启动 Chameleon 沙盒环境集成测试...")
+    
+    # 注意：确保 Chameleon 的 C 程序 (chameleon.out) 已经在后台运行！
+    # 否则 bpftool 找不到 cml_params_map
+    
+    env = ChameleonEnv(
+        target_pid=os.getpid(), 
+        cgroup_path="/sys/fs/cgroup/cache_test",
+        bpf_exec_path=os.path.expanduser("~/rl_page_cache/bpf/cache_ext_reuse.out")
+    )
+    
+    print("\n[1/3] 测试环境 Reset...")
+    obs, info = env.reset()
+    np.set_printoptions(precision=4, suppress=True)
+    print(f"✅ Reset 成功! 初始状态向量 (15维):\n{obs}")
+    
+    print("\n[2/3] 等待 1 秒，模拟 RL 推理延迟...")
+    time.sleep(1)
+    
+    print("\n[3/3] 测试环境 Step (下发全 0 动作)...")
+    # 动作空间 [3, 2, 4, 2, 2] -> 我们发个全 0 动作测试 bpftool 管道
+    action = np.zeros(5, dtype=int)
+    obs, reward, terminated, truncated, info = env.step(action)
+    
+    print(f"✅ Step 成功!")
+    print(f"🔹 新状态向量:\n{obs}")
+    print(f"🔹 获得 Reward: {reward:.4f}")
+    
+    # 优雅退出
+    env.ebpf_extractor.cleanup()

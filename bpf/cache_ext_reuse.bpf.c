@@ -1,14 +1,13 @@
-// cache_ext_reuse.bpf.c - 基于 BPF 的页面缓存扩展对象重用监控程序
+// cache_ext_reuse.bpf.c
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-#include <bpf/bpf_core_read.h>
-
-#include "dir_watcher.bpf.h"
 
 char _license[] SEC("license") = "GPL";
 
-// 传给用户态的统计数据
+// 由用户态注入的目标 cgroup ID
+const volatile __u64 target_cgroup_id = 0;
+
 struct reuse_stats {
     __u64 count;
     __u64 sum;
@@ -16,7 +15,6 @@ struct reuse_stats {
     __u64 global_seq;
 };
 
-// 记录页面上次访问序号
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 2000000);
@@ -24,7 +22,6 @@ struct {
     __type(value, __u64);
 } folio_history_map SEC(".maps");
 
-// 全局统计结果
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(max_entries, 1);
@@ -32,17 +29,13 @@ struct {
     __type(value, struct reuse_stats);
 } global_stats_map SEC(".maps");
 
-static inline bool is_folio_relevant(struct folio *folio) {
-    if (!folio || !folio->mapping || !folio->mapping->host)
-        return false;
-    return inode_in_watchlist(folio->mapping->host->i_ino);
-}
-
-// 拦截页面访问
 SEC("fentry/folio_mark_accessed")
 int BPF_PROG(on_folio_accessed, struct folio *folio)
 {
-    if (!is_folio_relevant(folio)) return 0;
+    // 基于当前进程的 cgroup ID 进行过滤
+    if (bpf_get_current_cgroup_id() != target_cgroup_id) {
+        return 0;
+    }
 
     __u64 folio_ptr = (__u64)folio;
     __u32 stat_key = 0;
@@ -66,12 +59,11 @@ int BPF_PROG(on_folio_accessed, struct folio *folio)
     return 0;
 }
 
-// 拦截页面驱逐 (防止内存泄漏)
 SEC("fentry/filemap_remove_folio") 
 int BPF_PROG(on_folio_removed, struct folio *folio)
 {
-    if (!is_folio_relevant(folio)) return 0;
-
+    // 注意：驱逐时不要检查 cgroup_id！因为 kswapd 回收时 cgroup 不匹配
+    // 直接尝试删除，反正 Hash Map 删除不存在的 Key 是安全的 O(1) 操作
     __u64 folio_ptr = (__u64)folio;
     bpf_map_delete_elem(&folio_history_map, &folio_ptr);
     return 0;

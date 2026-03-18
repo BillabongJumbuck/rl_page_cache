@@ -1,4 +1,6 @@
-chameleon_tensorboard
+checkpoints
 core
 eval
+logs
+scripts
 workloads

@@ -1,3 +1,4 @@
+# ebpf_extractor.py
 import subprocess
 import json
 import threading
@@ -6,13 +7,13 @@ import os
 import numpy as np
 
 class EbpfReuseExtractor:
-    def __init__(self, watch_dir: str, bpf_exec_path: str):
-        self.watch_dir = os.path.abspath(watch_dir)
-        self.bpf_exec_path = os.path.abspath(bpf_exec_path)
+    def __init__(self, cgroup_path: str):
+        self.cgroup_path = os.path.abspath(cgroup_path)
+        self.bpf_exec_path = os.path.expanduser("~/rl_page_cache/bpf/cache_ext_reuse.out")
         
-        # 启动 eBPF C 程序作为子进程
+        # 启动 eBPF C 程序作为子进程，替换原来的 -w 为 -c
         self.proc = subprocess.Popen(
-            ["sudo", self.bpf_exec_path, "-w", self.watch_dir],
+            ["sudo", self.bpf_exec_path, "-c", self.cgroup_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, # 屏蔽掉 C 程序的提示信息
             text=True
@@ -51,7 +52,7 @@ class EbpfReuseExtractor:
         
         self.prev_data = curr
         
-        # 为了让神经网络好消化，我们把数值稍微缩小一点 (比如除以 1000)
+        # 为了让神经网络好消化，把数值缩小一点
         return np.array([
             d_count / 1000.0, 
             avg_dist / 1000.0
@@ -67,17 +68,16 @@ class EbpfReuseExtractor:
 if __name__ == "__main__":
     import time
     
-    # 填入你编译好的 C 程序路径和监控目录
-    bpf_path = os.path.expanduser("/home/messidor/rl_page_cache/bpf/cache_ext_reuse.out")
-    test_dir = "/tmp/bpf_test"
+    # 填入你编译好的 C 程序路径和监控的 cgroup 目录
+    test_cgroup = "/sys/fs/cgroup/cache_test"
     
-    print(f"正在启动 eBPF 探针，监控目录: {test_dir}")
-    extractor = EbpfReuseExtractor(test_dir, bpf_path)
+    print(f"正在启动 eBPF 探针，监控 Cgroup: {test_cgroup}")
+    extractor = EbpfReuseExtractor(test_cgroup)
     
     print("等待 2 秒让探针初始化...")
     time.sleep(2)
     
-    for _ in range(3):
+    for _ in range(100):
         print("等待 1 秒采样...")
         time.sleep(1)
         stats = extractor.get_step_stats()

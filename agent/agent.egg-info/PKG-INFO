@@ -7,6 +7,8 @@ Description-Content-Type: text/markdown
 Requires-Dist: gymnasium>=1.2.3
 Requires-Dist: numpy>=2.2.6
 Requires-Dist: rich>=14.3.3
+Requires-Dist: ruamel-yaml>=0.19.1
+Requires-Dist: setuptools>=82.0.1
 Requires-Dist: stable-baselines3>=2.7.1
 Requires-Dist: tensorboard>=2.20.0
 Requires-Dist: tqdm>=4.67.3

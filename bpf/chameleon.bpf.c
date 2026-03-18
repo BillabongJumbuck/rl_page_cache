@@ -3,7 +3,6 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include "cache_ext_lib.bpf.h"
-#include "dir_watcher.bpf.h"
 
 char _license[] SEC("license") = "GPL";
 
@@ -40,11 +39,6 @@ struct {
     __type(value, u8);
 } ghost_map SEC(".maps");
 
-static inline bool is_folio_relevant(struct folio *folio) {
-    if (!folio || !folio->mapping || !folio->mapping->host) return false;
-    return inode_in_watchlist(folio->mapping->host->i_ino);
-}
-
 s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
     main_list = bpf_cache_ext_ds_registry_new_list(memcg);
     if (main_list == 0) return -1;
@@ -52,7 +46,6 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
-    if (!is_folio_relevant(folio)) return;
     bpf_cache_ext_list_add(main_list, folio); 
 
     __u32 param_key = 0;

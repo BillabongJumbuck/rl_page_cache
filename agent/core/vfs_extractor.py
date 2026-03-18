@@ -52,7 +52,7 @@ class DamonVFSExtractor:
             except Exception:
                 continue
 
-        print(f"[DEBUG] 共解析到 {len(regions_heat)} 个独立的内存区域")
+        # print(f"[DEBUG] 共解析到 {len(regions_heat)} 个独立的内存区域")
 
         total_cold_bytes = 0
         total_warm_bytes = 0
