@@ -44,8 +44,7 @@ echo "============================================"
 echo "  [2/4] 唤醒 eBPF 变色龙双子星"
 echo "============================================"
 cd ~/rl_page_cache/bpf
-# sudo ./cache_ext_reuse.out -w /tmp/bpf_test &
-sudo ./chameleon.out -w /tmp/bpf_test -c $CGROUP_DIR &
+sudo ./chameleon.out -c $CGROUP_DIR &
 cd ~/rl_page_cache/agent
 sleep 2 # 给 libbpf 挂载探针的时间
 

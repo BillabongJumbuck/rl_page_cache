@@ -145,7 +145,7 @@ class ChameleonPolicy:
         
         # 恢复 1：加回 -w 参数，并将 stdout 重定向到 DEVNULL 避免刷屏
         subprocess.Popen(
-            ["sudo", "./chameleon.out", "-w", self.temp_db, "-c", cgroup_path], 
+            ["sudo", "./chameleon.out", "-c", cgroup_path], 
             cwd=self.bpf_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
@@ -156,7 +156,7 @@ class ChameleonPolicy:
         env = os.environ.copy()
         env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
         # 告诉 AI 真正的 LevelDB 数据在哪个文件夹！
-        env["CHAMELEON_WATCH_DIR"] = self.temp_db
+        env["CHAMELEON_CGROUP_PATH"] = cgroup_path
         
         # 开启人类专家作弊模式（1 = 开启专家写死参数，0 = 开启 PPO AI 推理）
         # 既然 AI 丢了 .pkl 发挥失常，我们先用 1 (专家模式) 来验证 BPF 极速版的真实威力！

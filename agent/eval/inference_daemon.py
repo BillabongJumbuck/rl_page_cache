@@ -12,16 +12,15 @@ def main():
     print("============================================")
 
     # 【修复 1】: 动态获取监听目录，不再当瞎子！
-    watch_dir = os.environ.get("CHAMELEON_WATCH_DIR")
-    if not watch_dir:
-        raise ValueError("🚨 致命错误: 未设置 CHAMELEON_WATCH_DIR 环境变量！大脑不知道该看哪里！")
-    print(f">>> 雷达已锁定真实战场目录: {watch_dir}")
+    cgroup_path = os.environ.get("CHAMELEON_CGROUP_PATH")
+    if not cgroup_path:
+        raise ValueError("🚨 致命错误: 未设置 CHAMELEON_CGROUP_PATH 环境变量！大脑不知道该看哪里！")
+    print(f">>> 雷达已锁定真实战场目录: {cgroup_path}")
 
     # 1. 连接靶场环境
     env = ChameleonEnv(
         target_pid=os.getpid(), 
-        watch_dir=watch_dir, 
-        bpf_exec_path="" # 探针由外部脚本管理
+        cgroup_path=cgroup_path
     )
 
     # 2. 包装并加载归一化参数
@@ -65,7 +64,7 @@ def main():
                     # 【填入你的纯读防御神级参数】
                     # 请根据你的动作空间调整！例如：拉满 ghost 概率，降低 threshold 门槛
                     # 这里假设动作空间支持这种数值，请根据你实际的 action_space 修改
-                    expert_action = [1.0, -1.0, 1.0, -1.0, 0.0]
+                    expert_action = [0, 0, 3, 0, 1]
                     action = np.array([expert_action], dtype=np.float32)
                 else:
                     action, _ = model.predict(obs, deterministic=True)
