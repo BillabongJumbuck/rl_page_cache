@@ -51,11 +51,11 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
 void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
 
     // 【调试】获取当前进程的 PID 和 Cgroup ID
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
-    u64 cg_id = bpf_get_current_cgroup_id();
+    // u32 pid = bpf_get_current_pid_tgid() >> 32;
+    // u64 cg_id = bpf_get_current_cgroup_id();
     
-    // 强制打印，不带任何 if 过滤
-    bpf_printk("CML_DEBUG: Added folio %p, PID: %u, CG_ID: %llu\n", folio, pid, cg_id);
+    // // 强制打印，不带任何 if 过滤
+    // bpf_printk("CML_DEBUG: Added folio %p, PID: %u, CG_ID: %llu\n", folio, pid, cg_id);
     
     // 1. 所有新数据，无脑进入冷链表 (Probation List)
     bpf_cache_ext_list_add(probation_list, folio); 
@@ -88,16 +88,23 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
     if (!score) return; 
 
-    // 1. 原子计分 (彻底杜绝 8 线程并发压测下的脏写)
+    // 1. 原子加分，并拦截加分【前】的旧值
+    u32 old_score = 0;
     if (params->p_access > 0) {
-        __sync_fetch_and_add(score, 1);
+        old_score = __sync_fetch_and_add(score, 1);
     }
 
-    // 2. 晋升判定 (O(1) 跨链表物理转移)
-    // 注意：哪怕它已经在热链表了，只要分数达标，我们也会把它拉回热链表的头部（续命）
-    if (*score >= params->p_promote_thresh) {
+    // 2. 绝对并发安全的晋升判定！
+    // 只有把分数从 (thresh - 1) 踩到 thresh 的那一瞬间，才执行物理转移。
+    // 如果多个 CPU 并发，old_score 会严格呈现 1, 2, 3 的序列，只有一个能命中条件！
+    if (old_score + 1 == params->p_promote_thresh) {
         bpf_cache_ext_list_move(protected_list, folio, false);
-        *score = 0; // 重置分数，防止溢出
+    }
+
+    // 3. 热度封顶，防止分数无限膨胀导致溢出
+    // 同样使用 old_score 进行安全判定
+    if (old_score + 1 > 10) {
+        *score = 10;
     }
 }
 

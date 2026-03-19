@@ -4,37 +4,53 @@
 # ==========================================
 # 注册终极清理钩子：无视任何意外，强行打扫战场
 # ==========================================
-function cleanup_battlefield --on-event fish_exit --on-signal SIGINT
+function cleanup_battlefield --on-event fish_exit
     echo -e "\n============================================"
     echo "  [清理] 正在切断负载源与卸载探针..."
     echo "============================================"
-    # 1. 致命一击：必须先杀掉产生 fio 的外层循环，阻止其重生！
+    # 1. 切断新页面的产生源头
     sudo pkill -9 -f fio_loop.fish 2>/dev/null
-    
-    # 2. 再清理残余的 fio 实体
     sudo pkill -9 fio 2>/dev/null
     
-    # 3. 卸载内核探针
-#    sudo pkill -9 cache_ext_reuse 2>/dev/null
+    echo "  [清理] 等待 I/O 彻底平息..."
+    sleep 2
+    
+    # 2. 【绝对核心保命操作】：在探针存活时，清空所有残留页面！
+    echo "  [清理] 正在执行安全核爆 (Drop Caches)..."
+    sudo sync
+    echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null
+    
+    # 等待一小会儿，确保内核 Evictor 把双向链表拆解干净
+    sleep 2 
+
+    # 3. 此时物理内存已打扫干净，可以安全销毁探针了
+    echo "  [清理] 正在安全卸载变色龙探针..."
     sudo pkill -9 chameleon 2>/dev/null
     
     # 4. 解除物理封锁
     sudo swapon -a 2>/dev/null
     
-    echo "战场已彻底打扫干净！"
+    echo "战场已彻底打扫干净，安全退出！"
 end
 
 echo "============================================"
 echo "  [1/4] 申请 Root 权限与战场清理"
 echo "============================================"
 sudo -v
+
+# 【新增】：设置激进的脏页回写策略，防止 I/O 延迟尖刺干扰 RL 的 Reward 信号！
+echo "  [系统调优] 设置脏页后台刷盘水位至 1% (平滑 I/O 曲线)..."
+sudo sysctl -w vm.dirty_background_ratio=1 >/dev/null
+sudo sysctl -w vm.dirty_ratio=30 >/dev/null
+
+
 # 启动前主动调用一次清理，确保环境绝对纯净
 cleanup_battlefield 
 
 mkdir -p /tmp/bpf_test
 
 # 创建专用的训练 Cgroup
-set CGROUP_DIR "/sys/fs/cgroup/chameleon_train"
+set CGROUP_DIR "/sys/fs/cgroup/cache_ext_train"
 sudo mkdir -p $CGROUP_DIR
 echo "2G" | sudo tee $CGROUP_DIR/memory.max >/dev/null
 echo "0" | sudo tee $CGROUP_DIR/memory.swap.max >/dev/null

@@ -180,7 +180,7 @@ if __name__ == "__main__":
     
     env = ChameleonEnv(
         target_pid=os.getpid(), 
-        cgroup_path="/sys/fs/cgroup/cache_test"
+        cgroup_path="/sys/fs/cgroup/cache_ext_train"
     )
     
     print("\n[1/3] 测试环境 Reset...")

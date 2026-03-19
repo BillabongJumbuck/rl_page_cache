@@ -17,7 +17,7 @@ workload:
     scan: 0
     read_modify_write: 0
   # YCSB-D 的灵魂是 latest 分布。如果 C++ 版报错不支持 latest，可以退回 zipfian。
-  request_distribution: "latest" 
+  request_distribution: "latest"
   zipfian_constant: 0.99
   trace_file_list: []         # 补上空列表，防止 parser 找不到 key 报错
   scan_length: 100

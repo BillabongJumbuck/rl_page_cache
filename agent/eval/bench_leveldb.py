@@ -65,7 +65,6 @@ def get_mglru_state():
 def set_mglru_state(enable: bool):
     mglru_path = "/sys/kernel/mm/lru_gen/enabled"
     if os.path.exists(mglru_path):
-        # 0 = 关闭 (退化为传统 LRU), 1 (或更高级别的 flags) = 开启
         val = "1" if enable else "0" 
         run(["sudo", "sh", "-c", f"echo {val} > {mglru_path}"])
         state_str = "🟢 MGLRU (Multi-Gen LRU) 已激活" if enable else "🔴 传统双链表 LRU (Active/Inactive) 已激活"
@@ -101,18 +100,11 @@ def parse_leveldb_bench_results(stdout: str) -> dict:
 
 def save_results(results: dict, policy: str, workload: str):
     output_dir = "/home/messidor/rl_page_cache/agent/eval/output"
-    
-    # 如果目录不存在，自动创建它
     os.makedirs(output_dir, exist_ok=True)
-    
-    # 生成时间戳，例如: 20260317_174530
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # 拼装文件名: cml_ycsb_c_20260317_174530.json
     filename = f"{policy}_{workload}_{timestamp}.json"
     filepath = os.path.join(output_dir, filename)
     
-    # 顺手把实验的元数据也存进 JSON 里，方便以后画图溯源
     export_data = {
         "metadata": {
             "policy": policy,
@@ -121,14 +113,12 @@ def save_results(results: dict, policy: str, workload: str):
         },
         "metrics": results
     }
-    
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(export_data, f, indent=4)
-        
     log.info(f"💾 战报已永久归档至: {filepath}")
 
 # ==========================================
-# 3. 变色龙生命周期管理器
+# 3. 变色龙生命周期管理器 (绝对安全版)
 # ==========================================
 class ChameleonPolicy:
     def __init__(self, cgroup_name, temp_db, workload_name):
@@ -143,7 +133,6 @@ class ChameleonPolicy:
         log.info("🦎 正在唤醒变色龙 eBPF 探针与 PPO 大脑...")
         cgroup_path = f"/sys/fs/cgroup/{self.cgroup_name}"
         
-        # 恢复 1：加回 -w 参数，并将 stdout 重定向到 DEVNULL 避免刷屏
         subprocess.Popen(
             ["sudo", "./chameleon.out", "-c", cgroup_path], 
             cwd=self.bpf_dir,
@@ -152,13 +141,9 @@ class ChameleonPolicy:
         )
         sleep(2)
 
-        # 恢复 2：解封 Agent，并配置好环境变量
         env = os.environ.copy()
         env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
-        # 告诉 AI 真正的 LevelDB 数据在哪个文件夹！
         env["CHAMELEON_CGROUP_PATH"] = cgroup_path
-        
-        # 开启人类专家作弊模式（1 = 开启专家写死参数，0 = 开启 PPO AI 推理）
         env["CHAMELEON_EXPERT_MODE"] = "1" 
         
         self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
@@ -169,7 +154,21 @@ class ChameleonPolicy:
         sleep(3)
 
     def stop(self):
-        log.info("🛑 正在切断变色龙神经连接...")
+        # 🛡️【修复】：严格遵循安全退场仪式，防止内核崩溃！
+        log.info("🛑 正在执行安全退场仪式，切断变色龙神经连接...")
+        
+        # 第一步：杀掉可能还在产生缺页的 YCSB 进程
+        run(["sudo", "pkill", "-9", "-f", "run_leveldb"], check=False)
+        sleep(2)
+        
+        # 第二步：核爆清空所有双向链表 (此时 BPF 探针依然存活，绝对安全)
+        log.info("  [清理] 正在清空残留内存 (Drop Caches)...")
+        run(["sudo", "sync"])
+        run(["sudo", "sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
+        sleep(2)
+        
+        # 第三步：拔掉探针
+        log.info("  [清理] 正在安全卸载探针与大脑...")
         run(["sudo", "pkill", "-9", "-f", "inference_daemon.py"], check=False)
         run(["sudo", "pkill", "-9", "chameleon"], check=False)
         if self.log_handle:
@@ -181,23 +180,23 @@ class ChameleonPolicy:
 def main():
     parser = argparse.ArgumentParser("Chameleon YCSB Evaluator")
     parser.add_argument("-w", "--workload", type=str, required=True, help="Workload name, e.g., 'ycsb_c'")
-    # 【更新】：支持 cml, lru, mg 三大核心策略
     parser.add_argument("-p", "--policy", type=str, choices=["cml", "lru", "mg"], required=True, 
                         help="Test policy: cml (变色龙), lru (传统 Linux LRU), mg (原生 MGLRU)")
     args = parser.parse_args()
 
     ORIG_DB = "/home/messidor/rl_page_cache/leveldb_data"
     TEMP_DB = "/home/messidor/rl_page_cache/leveldb_data_temp"
-    CGROUP_NAME = f"eval_{args.policy}"
+    
+    # 🛡️【修复】：强行加上 cache_ext 前缀
+    CGROUP_NAME = f"cache_ext_eval_{args.policy}"
+    
     YCSB_BIN_DIR = "/home/messidor/cache_ext/My-YCSB/build"
     YCSB_BIN = os.path.join(YCSB_BIN_DIR, "run_leveldb")
     YAML_PATH = f"/home/messidor/rl_page_cache/agent/workloads/ycsb_configs/ycsb_{args.workload}.yaml"
 
-    # 记录原始的 MGLRU 状态并确保护理期间能恢复
     orig_mglru = get_mglru_state()
     CLEANUP_TASKS.append(lambda: restore_mglru_state(orig_mglru))
 
-    # 脏页参数控制
     set_sysctl("vm.dirty_background_ratio", 1)
     set_sysctl("vm.dirty_ratio", 30)
     CLEANUP_TASKS.append(lambda: set_sysctl("vm.dirty_background_ratio", 10))
@@ -208,11 +207,10 @@ def main():
         reset_env()
         recreate_cgroup(CGROUP_NAME, 2 * GiB)
 
-        # 核心：根据策略动态切换内核的内存管理底层逻辑
         if args.policy == "mg":
-            set_mglru_state(True)   # 开启 MGLRU
+            set_mglru_state(True) 
         else:
-            set_mglru_state(False)  # lru 和 cml 都需要关闭 MGLRU，退化为传统双链表
+            set_mglru_state(False) 
 
         with edit_yaml_file(YAML_PATH) as config:
             config["leveldb"]["data_dir"] = TEMP_DB
@@ -248,7 +246,8 @@ def main():
         save_results(results, args.policy, args.workload)
 
     finally:
-        log.info("🧹 打扫战场...")
+        # Python 的 finally 天然保证即使遇到 Ctrl+C 也会执行清理！
+        log.info("🧹 评测结束，打扫战场...")
         for task in CLEANUP_TASKS:
             try: task()
             except Exception as e: log.error(f"清理失败: {e}")

@@ -5,7 +5,7 @@ all: chameleon.out cache_ext_reuse.out
 
 # --- Chameleon 规则 ---
 chameleon.bpf.o: chameleon.bpf.c
-	$(CC) -target bpf -D__TARGET_ARCH_x86 -c $(CFLAGS) \
+	$(CC) -target bpf -D__TARGET_ARCH_x86 -c $(CFLAGS) -mcpu=v3 \
 		-idirafter /usr/lib/llvm-14/lib/clang/14.0.0/include \
 		-idirafter /usr/local/include \
 		-idirafter /usr/include/x86_64-linux-gnu \

@@ -118,14 +118,14 @@ class EbpfStateExtractor:
                 parsed_scores.append(0)
 
         scores = np.array(parsed_scores, dtype=np.int32)
-
-        # 4KB 一个页面
         wss_mb = (total_pages * 4096) / (1024 * 1024) 
         
-        # 极冷 (0分), 温热 (1-2分), 极热 (>=3分)
+        # 动态读取或写死你的门槛值，这里以 promote_thresh = 2 为例
+        thresh = 2 
+        
         cold_ratio = np.sum(scores == 0) / total_pages
-        warm_ratio = np.sum((scores > 0) & (scores < 3)) / total_pages
-        hot_ratio = np.sum(scores >= 3) / total_pages
+        warm_ratio = np.sum((scores > 0) & (scores < thresh)) / total_pages
+        hot_ratio = np.sum(scores >= thresh) / total_pages
 
         return np.array([wss_mb, cold_ratio, warm_ratio, hot_ratio], dtype=np.float32)
 

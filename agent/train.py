@@ -4,6 +4,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import CallbackList
 
 # 导入我们打磨好的终极环境
 from core.env import ChameleonEnv
@@ -39,12 +40,29 @@ class DualCheckpointCallback(BaseCallback):
             if self.verbose > 0:
                 print(f"\n[存档] 🛡️ 进度 {self.num_timesteps} 步: 模型与 pkl 已同步硬落盘！")
         return True
+    
 
+class GracefulStopCallback(BaseCallback):
+    def __init__(self, stop_file_path="/tmp/stop_chameleon", verbose=1):
+        super().__init__(verbose)
+        self.stop_file_path = stop_file_path
+
+    def _on_step(self) -> bool:
+        # 每次循环检查一下有没有这个文件
+        if os.path.exists(self.stop_file_path):
+            if self.verbose > 0:
+                print(f"\n[🛑 优雅中止] 检测到停止信标文件！正在安全结束训练...")
+            # 删掉信标文件，以免下次一启动就停了
+            os.remove(self.stop_file_path)
+            # 返回 False，SB3 会完美退出 learn() 循环，并往下走去保存模型！
+            return False 
+        return True
+    
 
 def main():
     # 1. 靶场参数 (探针已经在 train.fish 中由 C 程序接管，这里只需提供监控目录)
     TARGET_PID = os.getpid()  # 雷达会自动去抓 fio 的真 PID，这里给个自己的防闪退
-    CGROUP_PATH = "/sys/fs/cgroup/chameleon_train"
+    CGROUP_PATH = "/sys/fs/cgroup/cache_ext_train"
 
     print("正在实例化 Chameleon eBPF 强化学习环境...")
     env = ChameleonEnv(
@@ -104,13 +122,18 @@ def main():
         name_prefix='chameleon_ppo_backup'
     )
 
+    stop_callback = GracefulStopCallback(stop_file_path="/tmp/stop_chameleon")
+
+    # 将多个 Callback 打包
+    callback_list = CallbackList([checkpoint_callback, stop_callback])
+
     # 5. 点火训练！
     print("🚀 开始闭环进化！请紧盯终端的 Loss 变化...")
     try:
         # 将 timesteps 拉长到 50,000 步
         model.learn(
             total_timesteps=50000, 
-            callback=checkpoint_callback, 
+            callback=callback_list, 
             progress_bar=True,
             reset_num_timesteps=False 
         )
