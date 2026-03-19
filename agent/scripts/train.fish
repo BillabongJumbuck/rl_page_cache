@@ -27,6 +27,11 @@ function cleanup_battlefield --on-event fish_exit
     echo "  [清理] 正在安全卸载变色龙及重用探针..."
     sudo pkill -9 chameleon 2>/dev/null
     sudo pkill -9 cache_ext_reuse 2>/dev/null  # <== 【新增】顺手杀死微观提取器
+
+    echo "  [清理] 正在等待 BPF 探针彻底从内核注销..."
+    while pgrep -f chameleon > /dev/null; sleep 0.5; end
+    while pgrep -f cache_ext_reuse > /dev/null; sleep 0.5; end
+    sleep 1 # 额外留 1 秒给内核彻底回收数据结构
     
     # 4. 【致命补枪】：把僵尸 Cgroup 连根拔起！防止下次扫盘死机！
     echo "  [清理] 正在焚烧物理牢笼..."

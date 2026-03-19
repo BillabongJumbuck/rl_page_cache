@@ -192,13 +192,14 @@ static int bpf_chameleon_evict_cb(int idx, struct cache_ext_list_node *a) {
         struct macro_stats *stats = bpf_map_lookup_elem(&cml_stats_map, &stat_key);
         if (stats) {
             u32 safe_old = old_score > 10 ? 10 : old_score;
+            u32 safe_new = new_score > 10 ? 10 : new_score;
             if (score && safe_old != new_score) {
                 __sync_fetch_and_add(&stats->score_counts[safe_old], -1);
-                __sync_fetch_and_add(&stats->score_counts[new_score], 1);
+                __sync_fetch_and_add(&stats->score_counts[safe_new], 1);
             } else if (!score) {
                 // 原来不存在，被 PTE 访问抓回来了，算作新生页面
                 __sync_fetch_and_add(&stats->wss, 1);
-                __sync_fetch_and_add(&stats->score_counts[new_score], 1);
+                __sync_fetch_and_add(&stats->score_counts[safe_new], 1);
             }
         }
         return CACHE_EXT_CONTINUE_ITER; 

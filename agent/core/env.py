@@ -191,10 +191,11 @@ if __name__ == "__main__":
     
     print("\n[2/3] 测试环境 Step (下发全 0 动作)...")
     action = np.zeros(4, dtype=int)
-    obs, reward, terminated, truncated, info = env.step(action)
-    
-    print(f"✅ Step 成功!")
-    print(f"🔹 新状态向量:\n{obs}")
-    print(f"🔹 获得 Reward: {reward:.4f}")
+    for i in range(10):
+        obs, reward, terminated, truncated, info = env.step(action)
+        print(f"✅ Step 成功!")
+        print(f"🔹 新状态向量:\n{obs}")
+        print(f"🔹 获得 Reward: {reward:.4f}")
+
     
     env.extractor.cleanup()
