@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     if (!skel) goto cleanup;
 
     __u32 map_key = 0;
-    struct { __u32 p1, p2, p3, p4, p5; } params = {0, 0, 0, 0, 0};
+    struct { __u32 p1, p2, p3, p4; } params = {1, 50, 2, 0};
     bpf_map_update_elem(bpf_map__fd(skel->maps.cml_params_map), &map_key, &params, BPF_ANY);
 
     link = bpf_map__attach_cache_ext_ops(skel->maps.chameleon_ops, cgroup_fd);

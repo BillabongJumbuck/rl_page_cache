@@ -90,8 +90,34 @@ class EbpfStateExtractor:
         if total_pages == 0:
             return np.zeros(4, dtype=np.float32)
 
-        # 提取所有页面的真实分数
-        scores = np.array([entry["value"] for entry in entries])
+        # --- 核心修复：强力解析 bpftool 的奇葩 JSON 格式 ---
+        parsed_scores = []
+        for entry in entries:
+            val = entry.get("value", 0)
+            if isinstance(val, (int, float)):
+                # 标准数字：直接转换
+                parsed_scores.append(int(val))
+            elif isinstance(val, str):
+                # 十六进制或十进制字符串，例如 "0x03" 或 "3"
+                parsed_scores.append(int(val, 0))
+            elif isinstance(val, list):
+                # 字节数组，例如 ["0x03", "0x00", "0x00", "0x00"]
+                try:
+                    b_list = [int(x, 16) if isinstance(x, str) else int(x) for x in val]
+                    parsed_scores.append(int.from_bytes(b_list, byteorder='little'))
+                except:
+                    parsed_scores.append(0)
+            elif isinstance(val, dict):
+                # 如果 BTF 解析成结构体字典，取第一个值
+                try:
+                    first_val = list(val.values())[0]
+                    parsed_scores.append(int(first_val))
+                except:
+                    parsed_scores.append(0)
+            else:
+                parsed_scores.append(0)
+
+        scores = np.array(parsed_scores, dtype=np.int32)
 
         # 4KB 一个页面
         wss_mb = (total_pages * 4096) / (1024 * 1024) 
@@ -112,7 +138,7 @@ class EbpfStateExtractor:
 if __name__ == "__main__":
     import time
     
-    test_cgroup = "/sys/fs/cgroup/cache_test"
+    test_cgroup = "/sys/fs/cgroup/cache_ext_test"
     print(f"🚀 启动全能 eBPF 提取器，监控 Cgroup: {test_cgroup}")
     
     extractor = EbpfStateExtractor(test_cgroup)
