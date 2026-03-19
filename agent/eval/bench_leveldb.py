@@ -188,7 +188,11 @@ def main():
     TEMP_DB = "/home/messidor/rl_page_cache/leveldb_data_temp"
     
     # 🛡️【修复】：强行加上 cache_ext 前缀
-    CGROUP_NAME = f"cache_ext_eval_{args.policy}"
+    if args.policy == "cml":
+        CGROUP_NAME = f"cache_ext_eval_{args.policy}"
+    else:
+        # lru 和 mg 策略使用纯净名字，彻底避开内核学术框架的干扰！
+        CGROUP_NAME = f"eval_{args.policy}"
     
     YCSB_BIN_DIR = "/home/messidor/cache_ext/My-YCSB/build"
     YCSB_BIN = os.path.join(YCSB_BIN_DIR, "run_leveldb")
