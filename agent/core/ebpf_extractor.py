@@ -74,60 +74,62 @@ class EbpfStateExtractor:
             avg_dist / 1000.0
         ], dtype=np.float32)
 
-    def get_macro_state(self) -> np.ndarray:
+    def get_macro_state(self, promote_thresh: int = 2) -> np.ndarray:
         """获取物理内存的真实冷热分布: [WSS(MB), Cold%, Warm%, Hot%]"""
-        if not self.macro_map_id:
+        
+        # 【关键修改】：去查我们新建的聚合统计 Map
+        stats_map_id = self._find_map_id("cml_stats_map")
+        if not stats_map_id:
             return np.zeros(4, dtype=np.float32)
 
-        cmd = ["sudo", "bpftool", "map", "dump", "id", str(self.macro_map_id), "-j"]
+        # 现在的 dump 是瞬间完成的 (因为 Map 只有 1 个条目)
+        cmd = ["sudo", "bpftool", "map", "dump", "id", str(stats_map_id), "-j"]
         try:
             res = subprocess.run(cmd, capture_output=True, text=True)
             entries = json.loads(res.stdout)
-        except:
-            return np.zeros(4, dtype=np.float32)
-
-        total_pages = len(entries)
-        if total_pages == 0:
-            return np.zeros(4, dtype=np.float32)
-
-        # --- 核心修复：强力解析 bpftool 的奇葩 JSON 格式 ---
-        parsed_scores = []
-        for entry in entries:
-            val = entry.get("value", 0)
-            if isinstance(val, (int, float)):
-                # 标准数字：直接转换
-                parsed_scores.append(int(val))
-            elif isinstance(val, str):
-                # 十六进制或十进制字符串，例如 "0x03" 或 "3"
-                parsed_scores.append(int(val, 0))
+            if not entries: return np.zeros(4, dtype=np.float32)
+            
+            val = entries[0]["value"]
+            # 兼容 BTF 解析和 Raw 字节数组解析
+            import struct
+            if isinstance(val, dict):
+                wss = int(val["wss"])
+                counts = [int(val["score_counts"][i]) for i in range(11)]
             elif isinstance(val, list):
-                # 字节数组，例如 ["0x03", "0x00", "0x00", "0x00"]
-                try:
-                    b_list = [int(x, 16) if isinstance(x, str) else int(x) for x in val]
-                    parsed_scores.append(int.from_bytes(b_list, byteorder='little'))
-                except:
-                    parsed_scores.append(0)
-            elif isinstance(val, dict):
-                # 如果 BTF 解析成结构体字典，取第一个值
-                try:
-                    first_val = list(val.values())[0]
-                    parsed_scores.append(int(first_val))
-                except:
-                    parsed_scores.append(0)
+                b_list = bytes([int(x, 16) if isinstance(x, str) else int(x) for x in val])
+                # 解析 12 个 64 位有符号整数 (1 个 wss + 11 个 count)
+                unpacked = struct.unpack("<12q", b_list)
+                wss = unpacked[0]
+                counts = unpacked[1:12]
             else:
-                parsed_scores.append(0)
+                return np.zeros(4, dtype=np.float32)
+        except Exception:
+            return np.zeros(4, dtype=np.float32)
 
-        scores = np.array(parsed_scores, dtype=np.int32)
-        wss_mb = (total_pages * 4096) / (1024 * 1024) 
-        
-        # 动态读取或写死你的门槛值，这里以 promote_thresh = 2 为例
-        thresh = 2 
-        
-        cold_ratio = np.sum(scores == 0) / total_pages
-        warm_ratio = np.sum((scores > 0) & (scores < thresh)) / total_pages
-        hot_ratio = np.sum(scores >= thresh) / total_pages
+        # RL 环境允许一定的并发噪点，防卫性防止负数
+        counts = [max(0, c) for c in counts]
+        wss = max(0, wss)
 
-        return np.array([wss_mb, cold_ratio, warm_ratio, hot_ratio], dtype=np.float32)
+        if wss == 0:
+            return np.zeros(4, dtype=np.float32)
+
+        wss_mb = (wss * 4096) / (1024 * 1024) 
+        
+        # 根据当前的门槛值，瞬间算出三级冷热
+        cold_pages = counts[0]
+        warm_pages = sum(counts[1:promote_thresh])
+        hot_pages = sum(counts[promote_thresh:])
+        
+        total_tracked = cold_pages + warm_pages + hot_pages
+        if total_tracked == 0:
+            return np.array([wss_mb, 0, 0, 0], dtype=np.float32)
+
+        return np.array([
+            wss_mb, 
+            cold_pages / total_tracked, 
+            warm_pages / total_tracked, 
+            hot_pages / total_tracked
+        ], dtype=np.float32)
 
     def cleanup(self):
         if self.proc.poll() is None:

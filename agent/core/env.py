@@ -134,9 +134,9 @@ class ChameleonEnv(gym.Env):
         self._apply_action_to_ebpf(np.zeros(4, dtype=int))
         self.prev_min_flt, self.prev_maj_flt = self._get_vmstat()
 
-        # 直接从 eBPF 提取微观和宏观物理状态
+        # 直接从 eBPF 提取微观和宏观物理状态 (Reset 时默认门槛假设为 2，或 0)
         micro_state = self.extractor.get_micro_state()
-        macro_state = self.extractor.get_macro_state()
+        macro_state = self.extractor.get_macro_state(promote_thresh=2)
         
         obs = self._build_observation(macro_state, micro_state, 0, 0)
         return obs, {}
@@ -148,9 +148,10 @@ class ChameleonEnv(gym.Env):
         # 物理阻塞 1 秒，让子弹飞 (代替了原先 DAMON 脚本里的 duration)
         time.sleep(1.0)
         
-        # 提取 eBPF 物理状态
+        # 提取 eBPF 物理状态，传入 AI 刚刚下发的晋升门槛！
         micro_state = self.extractor.get_micro_state()
-        macro_state = self.extractor.get_macro_state()
+        # action[2] 就是 p_promote_thresh
+        macro_state = self.extractor.get_macro_state(promote_thresh=int(action[2]))
         
         post_min, post_maj = self._get_vmstat()
         delta_min = max(0, post_min - pre_min)

@@ -24,10 +24,16 @@ function cleanup_battlefield --on-event fish_exit
     sleep 2 
 
     # 3. 此时物理内存已打扫干净，可以安全销毁探针了
-    echo "  [清理] 正在安全卸载变色龙探针..."
+    echo "  [清理] 正在安全卸载变色龙及重用探针..."
     sudo pkill -9 chameleon 2>/dev/null
+    sudo pkill -9 cache_ext_reuse 2>/dev/null  # <== 【新增】顺手杀死微观提取器
     
-    # 4. 解除物理封锁
+    # 4. 【致命补枪】：把僵尸 Cgroup 连根拔起！防止下次扫盘死机！
+    echo "  [清理] 正在焚烧物理牢笼..."
+    sudo cgdelete -g memory:/cache_ext_train 2>/dev/null
+    sudo rmdir /sys/fs/cgroup/cache_ext_train 2>/dev/null
+    
+    # 5. 解除物理封锁
     sudo swapon -a 2>/dev/null
     
     echo "战场已彻底打扫干净，安全退出！"

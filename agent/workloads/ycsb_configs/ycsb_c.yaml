@@ -5,8 +5,8 @@ database:
 
 workload:
   nr_warmup_op: 10000000
-  warmup_runtime_seconds: 60
-  runtime_seconds: 240
+  warmup_runtime_seconds: 30
+  runtime_seconds: 60
   nr_op: 80000000
   nr_thread: 12
   next_op_interval_ns: 0      # 补上，C++代码可能强依赖

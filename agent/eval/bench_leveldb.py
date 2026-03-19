@@ -211,6 +211,9 @@ def main():
         reset_env()
         recreate_cgroup(CGROUP_NAME, 2 * GiB)
 
+        # 🛡️【终极补枪】：无论评测怎么结束，必须把 Cgroup 牢笼连根拔起，防止变成僵尸！
+        CLEANUP_TASKS.append(lambda: run(["sudo", "cgdelete", "-g", f"memory:{CGROUP_NAME}"], check=False))
+
         if args.policy == "mg":
             set_mglru_state(True) 
         else:
@@ -251,8 +254,8 @@ def main():
 
     finally:
         # Python 的 finally 天然保证即使遇到 Ctrl+C 也会执行清理！
-        log.info("🧹 评测结束，打扫战场...")
-        for task in CLEANUP_TASKS:
+        log.info("🧹 评测结束，打扫战场 (LIFO 安全模式)...")
+        for task in reversed(CLEANUP_TASKS):
             try: task()
             except Exception as e: log.error(f"清理失败: {e}")
 
