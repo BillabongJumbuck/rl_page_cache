@@ -1,5 +1,5 @@
 #!/usr/bin/env fish
-# 变色龙终极炼狱靶场 V2 (SOSP/OSDI 标准评测版)
+# 变色龙终极炼狱靶场 V2 
 
 set TEST_DIR "/tmp/bpf_test"
 set TEST_FILE "$TEST_DIR/test.dat"

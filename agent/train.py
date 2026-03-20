@@ -5,6 +5,7 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CallbackList
+from stable_baselines3.common.monitor import Monitor
 
 # 导入我们打磨好的终极环境
 from core.env import ChameleonEnv
@@ -69,6 +70,8 @@ def main():
         target_pid=TARGET_PID, 
         cgroup_path=CGROUP_PATH
     )
+
+    env = Monitor(env)
 
     # 2. 严苛的环境体检
     print("进行环境规范合规性检查...")

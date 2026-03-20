@@ -146,7 +146,7 @@ class ChameleonEnv(gym.Env):
         pre_min, pre_maj = self._get_vmstat()
         
         # 物理阻塞 1 秒，让子弹飞 (代替了原先 DAMON 脚本里的 duration)
-        time.sleep(1.0)
+        time.sleep(0.1)
         
         # 提取 eBPF 物理状态，传入 AI 刚刚下发的晋升门槛！
         micro_state = self.extractor.get_micro_state()
