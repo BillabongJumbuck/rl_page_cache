@@ -144,7 +144,7 @@ class ChameleonPolicy:
         env = os.environ.copy()
         env["CHAMELEON_CSV_LOG"] = f"logs/ycsb_{self.workload_name}_decisions.csv"
         env["CHAMELEON_CGROUP_PATH"] = cgroup_path
-        env["CHAMELEON_EXPERT_MODE"] = "1" 
+        env["CHAMELEON_EXPERT_MODE"] = "0" 
         
         self.log_handle = open(f"{self.agent_dir}/logs/daemon_ycsb_{self.workload_name}.log", "w")
         subprocess.Popen(

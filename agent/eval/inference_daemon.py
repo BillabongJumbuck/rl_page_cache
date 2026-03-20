@@ -24,7 +24,7 @@ def main():
     )
 
     vec_env = DummyVecEnv([lambda: env])
-    pkl_path = "checkpoints/chameleon_ppo_backup_10000_steps_vecnormalize.pkl"
+    pkl_path = "checkpoints/chameleon_ppo_backup_34000_steps_vecnormalize.pkl"
     if os.path.exists(pkl_path):
         print(">>> 发现归一化参数，正在同步环境尺度...")
         vec_env = VecNormalize.load(pkl_path, vec_env)
@@ -37,7 +37,7 @@ def main():
     
     model = None
     if not is_expert_mode:
-        model_path = "checkpoints/chameleon_ppo_backup_10000_steps.zip"
+        model_path = "checkpoints/chameleon_ppo_backup_34000_steps.zip"
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"找不到模型文件 {model_path}！")
         print(f"正在加载神经网络: {model_path}...")

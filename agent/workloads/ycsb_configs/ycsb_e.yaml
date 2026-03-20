@@ -18,10 +18,8 @@ workload:
     read_modify_write: 0
   request_distribution: "zipfian"
   zipfian_constant: 0.99
-  # 每次 Scan 读取 100 条记录，极其恶毒的缓存污染源
-  scan_length: 100
   trace_file_list: []         # 补上空列表，防止 parser 找不到 key 报错
-  scan_length: 100 
+  scan_length: 100
 
 leveldb:
   data_dir: "/home/messidor/rl_page_cache/leveldb_data_temp"

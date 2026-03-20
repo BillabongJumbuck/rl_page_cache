@@ -2,7 +2,7 @@
 # auto_leveldb.fish - 变色龙 AI vs Linux LRU 全量评测矩阵自动化脚本
 
 # 定义测试矩阵
-set workloads a b c d e f
+set workloads e f
 set policies lru cml
 set num_runs 3
 

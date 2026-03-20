@@ -100,15 +100,16 @@ def main():
     # ---------------------------------------------------------
     print("初始化 PPO 神经网络模型...")
     model = PPO(
-       "MlpPolicy", 
-       vec_env, 
-       verbose=1,
-       learning_rate=2e-4,     # 稍微调低学习率，让长程训练更平滑
-       n_steps=256,            # 扩大视野：每收集 256 秒的经验才更新一次大脑
-       batch_size=64,          # 相应增大 Batch Size
-       ent_coef=0.01,          # 增加一点熵系数，鼓励它在漫长岁月里多尝试不同的参数组合
-       device="cpu", 
-       tensorboard_log="./logs/chameleon_tensorboard/"
+        "MlpPolicy", 
+        vec_env, 
+        verbose=1,
+        learning_rate=1e-4,      # 压低学习率：因为步数变多，步子迈小一点，防止 Critic 震荡崩盘
+        n_steps=2048,            # 🔭 核心改动：扩大经验池！2048步约等于 200 秒，正好能跨越 1~2 个完整的 FIO 阶段！
+        batch_size=256,          # 相应增大 Batch Size，让每次梯度下降更平滑
+        ent_coef=0.01,           # 保持探索心
+        gamma=0.999,             # ⏳ 极其关键的新增参数！折扣因子。
+        device="cpu", 
+        tensorboard_log="./logs/chameleon_tensorboard/"
     )
 
     # 4a. 如果之前训练过，继续从上次的检查点恢复 (如果没有，就从头开始)
@@ -118,9 +119,9 @@ def main():
     #     tensorboard_log="./logs/chameleon_tensorboard/" 
     # )
 
-    # 4b. 使用我们刚才写的【双端存档器】，每 1000 步连同 pkl 一起保存！
+    # 4b. 使用我们刚才写的【双端存档器】，每 4000 步连同 pkl 一起保存！
     checkpoint_callback = DualCheckpointCallback(
-        save_freq=1000,
+        save_freq=4000,
         save_path='./checkpoints/',
         name_prefix='chameleon_ppo_backup'
     )
