@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/resource.h>
 #include "chameleon.skel.h"
 
 struct cmdline_args { char *cgroup_path; };
@@ -23,6 +24,14 @@ static volatile bool exiting = false;
 static void sig_handler(int sig) { exiting = true; }
 
 int main(int argc, char **argv) {
+    struct rlimit rlim = {
+        .rlim_cur = RLIM_INFINITY,
+        .rlim_max = RLIM_INFINITY,
+    };
+    if (setrlimit(RLIMIT_MEMLOCK, &rlim)) {
+        fprintf(stderr, "Warning: Failed to increase RLIMIT_MEMLOCK limit!\n");
+    }
+
     struct chameleon_bpf *skel = NULL;
     struct bpf_link *link = NULL;
     int cgroup_fd = -1;

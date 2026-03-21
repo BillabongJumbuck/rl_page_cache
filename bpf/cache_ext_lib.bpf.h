@@ -95,7 +95,12 @@ u64 bpf_cache_ext_ds_registry_new_list(struct mem_cgroup *memcg) __ksym;
 u64 bpf_cache_ext_list_length(struct mem_cgroup *memcg, u64 list) __ksym;
 int bpf_cache_ext_list_demote_batch(struct mem_cgroup *memcg, u64 hot_list, u64 cold_list, u32 batch_size) __ksym;
 int bpf_folio_check_referenced(struct folio *folio) __ksym;
-int bpf_cache_ext_list_iterate_reverse(struct mem_cgroup *memcg, u64 list, void *iter_fn, struct cache_ext_eviction_ctx *ctx) __ksym;
+int bpf_cache_ext_list_iterate_reverse(
+    struct mem_cgroup *memcg, 
+    u64 list, 
+    int (*iter_fn)(int idx, struct cache_ext_list_node *node), 
+    struct cache_ext_eviction_ctx *ctx
+) __ksym;
 struct folio *bpf_cache_ext_sieve_get_victim(struct mem_cgroup *memcg, u64 list) __ksym;
 
 #define BITS_PER_LONG 64

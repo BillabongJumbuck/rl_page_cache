@@ -46,14 +46,14 @@ static u64 main_list;
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 4000000); 
+    __uint(max_entries, 200000); 
     __type(key, __u64); 
     __type(value, u32); // 记录页面分数 (SIEVE=1, LFU=1~10)
 } folio_meta_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH); 
-    __uint(max_entries, 1000000); 
+    __uint(max_entries, 200000); 
     __type(key, __u64);
     __type(value, u8); // 记录是被哪个 policy_id 杀死的 (0~3)
 } ghost_map SEC(".maps");
@@ -69,20 +69,19 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
     bpf_cache_ext_list_add(main_list, folio); 
 
     __u64 key = (__u64)folio;
-    u32 initial_score = 0;
+    u32 initial_score = 0; // 无论是哪个策略，这个 0 必须写进去！
 
-    // 【追责判定】：页面再次进入内存，如果在幽灵表里，说明曾经被错杀
     u8 *killer_policy = bpf_map_lookup_elem(&ghost_map, &key);
     if (killer_policy) {
         u32 stat_key = 0;
         struct macro_stats *stats = bpf_map_lookup_elem(&cml_stats_map, &stat_key);
         if (stats && *killer_policy <= POLICY_LFU) {
-            // 给当年杀错人的策略记上一笔负面账 (Reward 扣分依据)
             __sync_fetch_and_add(&stats->score_counts[*killer_policy], 1);
         }
         bpf_map_delete_elem(&ghost_map, &key);
     }
 
+    // 【关键】：强制在 folio_meta_map 注册身份，代表它正式加入了缓存链表
     bpf_map_update_elem(&folio_meta_map, &key, &initial_score, BPF_ANY);
 
     u32 stat_key = 0;
@@ -99,9 +98,12 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
 
     __u64 key = (__u64)folio;
     u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
+    
+    // 【生死防线】：如果没有 score，说明这个 folio 根本不在我们的 main_list 里！
+    // 此时绝对不能执行后面的 bpf_cache_ext_list_move，必须立刻 return！
     if (!score) return; 
 
-    // 【策略路由】：根据 RL 下发的策略，执行不同的状态转移逻辑
+    // 安全通过防线，开始策略路由
     switch (params->active_policy) {
         case POLICY_LRU:
         case POLICY_MRU:
@@ -177,20 +179,22 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
         bpf_cache_ext_list_iterate_reverse(memcg, main_list, evict_lru_mru_cb, eviction_ctx);
     } 
     else if (policy == POLICY_SIEVE) {
-        // 尽最大努力满足内核请求的驱逐数量，最多不超过数组上限 (通常为 32)
-        while (eviction_ctx->nr_folios_to_evict < eviction_ctx->request_nr_folios_to_evict) {
-            
-            // 安全边界检查：绝对不能超过内核预分配的数组大小
-            u32 idx = eviction_ctx->nr_folios_to_evict;
-            if (idx >= 32) break; 
-            
-            struct folio *victim = bpf_cache_ext_sieve_get_victim(memcg, main_list);
-            
-            // 如果连一个冷数据都找不到了（比如缓存全满且全被设为 visited），必须立刻跳出，防止死循环
-            if (!victim) break; 
+        // 使用预处理宏，强制编译器展开循环。数字 32 是内核数组的最大容量。
+        #pragma unroll
+        for (int i = 0; i < 32; i++) {
+            // 如果已经满足了内核的需求，提前结束展开后的执行流
+            if (eviction_ctx->nr_folios_to_evict >= eviction_ctx->request_nr_folios_to_evict) {
+                break;
+            }
 
-            eviction_ctx->folios_to_evict[idx] = victim;
-            eviction_ctx->nr_folios_to_evict = idx + 1;
+            struct folio *victim = bpf_cache_ext_sieve_get_victim(memcg, main_list);
+            if (!victim) {
+                break; // 找不到冷数据了，赶紧撤
+            }
+
+            // 此时的 i 在编译后是一个绝对常数，Verifier 不会再抱怨了
+            eviction_ctx->folios_to_evict[i] = victim;
+            eviction_ctx->nr_folios_to_evict = i + 1;
         }
     }
     else if (policy == POLICY_LFU) {
