@@ -1,4 +1,3 @@
-// chameleon.c
 #include <argp.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -7,7 +6,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include "chameleon.skel.h"
-// 完全移除 dir_watcher.h
 
 struct cmdline_args { char *cgroup_path; };
 static struct argp_option options[] = { 
@@ -42,17 +40,18 @@ int main(int argc, char **argv) {
     }
 
     libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-    skel = chameleon_bpf__open_and_load(); // 简化合并为一步
+    skel = chameleon_bpf__open_and_load(); 
     if (!skel) goto cleanup;
 
+    // 【修改点】：动作结构体对齐，默认加载策略 0 (POLICY_LRU)
     __u32 map_key = 0;
-    struct { __u32 p1, p2, p3, p4; } params = {1, 50, 2, 0};
+    struct { __u32 active_policy; } params = {0};
     bpf_map_update_elem(bpf_map__fd(skel->maps.cml_params_map), &map_key, &params, BPF_ANY);
 
     link = bpf_map__attach_cache_ext_ops(skel->maps.chameleon_ops, cgroup_fd);
     if (!link) goto cleanup;
 
-    printf("Chameleon Policy successfully attached to cgroup!\n");
+    printf("Chameleon (4-Policy Router) successfully attached to cgroup!\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     

@@ -1,5 +1,5 @@
 #!/usr/bin/env fish
-# 变色龙终极炼狱靶场 V2 
+# 变色龙终极炼狱靶场 V3 (随机 Domain Randomization 版)
 
 set TEST_DIR "/tmp/bpf_test"
 set TEST_FILE "$TEST_DIR/test.dat"
@@ -15,23 +15,37 @@ if not test -f $TEST_FILE
     sleep 3
 end
 
-echo "[FIO] 炼狱靶场准备完毕，开始注入全谱段混合负载！"
+echo "[FIO] 炼狱靶场准备完毕，开始注入全谱段乱序混合负载！"
+
+# 定义可选的阶段
+set phases "zipf" "mixed" "spike" "analytics" "tail"
 
 while true
-    echo ">>> [阶段 1] OLTP 核心热点 (强 Zipfian 纯读) - 2分钟"
-    fio --name=zipf_read --filename=$TEST_FILE --rw=randread --random_distribution=zipf:1.2 --bs=4k --size=5G --runtime=120 --time_based --direct=0 > /dev/null 2>&1
+    # 每轮打乱数组顺序
+    set shuffled_phases (random choice -n 5 $phases)
+    
+    for phase in $shuffled_phases
+        switch $phase
+            case "zipf"
+                echo ">>> [乱序] OLTP 核心热点 (强 Zipfian) - 20秒"
+                # Runtime 从 120 秒大幅压缩到 20 秒
+                fio --name=zipf_read --filename=$TEST_FILE --rw=randread --random_distribution=zipf:1.2 --bs=4k --size=5G --runtime=20 --time_based --direct=0 > /dev/null 2>&1
 
-    echo ">>> [阶段 2] 复杂事务交火 (70%读/30%写, 弱 Zipfian) - 2分钟"
-    fio --name=oltp_mixed --filename=$TEST_FILE --rw=randrw --rwmixread=70 --random_distribution=zipf:0.8 --bs=8k --size=5G --runtime=120 --time_based --direct=0 > /dev/null 2>&1
+            case "mixed"
+                echo ">>> [乱序] 复杂事务交火 (70%读/30%写) - 20秒"
+                fio --name=oltp_mixed --filename=$TEST_FILE --rw=randrw --rwmixread=70 --random_distribution=zipf:0.8 --bs=8k --size=5G --runtime=20 --time_based --direct=0 > /dev/null 2>&1
 
-    echo ">>> [阶段 3] 洪峰突起 (12 线程极高并发随机扫描) - 30秒"
-    # 这里不需要 offset_increment，因为 randread 本就是全盘随机跳跃，考验的是并发下的自旋锁
-    fio --name=spike --filename=$TEST_FILE --rw=randread --numjobs=12 --bs=4k --size=5G --runtime=30 --time_based --group_reporting --direct=0 > /dev/null 2>&1
+            case "spike"
+                echo ">>> [乱序] 洪峰突起 (12 线程并发) - 15秒"
+                fio --name=spike --filename=$TEST_FILE --rw=randread --numjobs=12 --bs=4k --size=5G --runtime=15 --time_based --group_reporting --direct=0 > /dev/null 2>&1
 
-    echo ">>> [阶段 4] 分析型宽表扫描 (4 线程错位并发顺序读) - 1分钟"
-    # 【核心改动】：offset_increment=1G，让四辆推土机从四个不同的起点同时发车，制造极其惨烈的 Thrashing！
-    fio --name=analytics --filename=$TEST_FILE --rw=read --numjobs=4 --offset_increment=1G --bs=1M --size=5G --runtime=60 --time_based --group_reporting --direct=0 > /dev/null 2>&1
+            case "analytics"
+                echo ">>> [乱序] 分析型宽表扫描 (重度 Thrashing) - 20秒"
+                fio --name=analytics --filename=$TEST_FILE --rw=read --numjobs=4 --offset_increment=1G --bs=1M --size=5G --runtime=20 --time_based --group_reporting --direct=0 > /dev/null 2>&1
 
-    echo ">>> [阶段 5] 业务长尾期 (无规律稀疏散列) - 1分钟"
-    fio --name=tail --filename=$TEST_FILE --rw=randread --bs=16k --size=5G --runtime=60 --time_based --direct=0 > /dev/null 2>&1
+            case "tail"
+                echo ">>> [乱序] 业务长尾期 (稀疏散列) - 15秒"
+                fio --name=tail --filename=$TEST_FILE --rw=randread --bs=16k --size=5G --runtime=15 --time_based --direct=0 > /dev/null 2>&1
+        end
+    end
 end
