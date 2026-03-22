@@ -23,6 +23,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static volatile bool exiting = false;
 static void sig_handler(int sig) { exiting = true; }
 
+// 定义全局的 Pin 挂载路径
+const char *PIN_PARAMS_PATH = "/sys/fs/bpf/cml_params_map";
+const char *PIN_STATS_PATH  = "/sys/fs/bpf/cml_stats_map";
+
 int main(int argc, char **argv) {
     struct rlimit rlim = {
         .rlim_cur = RLIM_INFINITY,
@@ -52,7 +56,25 @@ int main(int argc, char **argv) {
     skel = chameleon_bpf__open_and_load(); 
     if (!skel) goto cleanup;
 
-    // 【修改点】：动作结构体对齐，默认加载策略 0 (POLICY_LRU)
+    // ==============================================================
+    // 🌟 【核心修改】：将 Map Pin 到文件系统，确保外部脚本 100% 能找到
+    // ==============================================================
+    // 先尝试解绑可能因为上次异常退出而残留的 Map
+    bpf_map__unpin(skel->maps.cml_params_map, PIN_PARAMS_PATH);
+    bpf_map__unpin(skel->maps.cml_stats_map, PIN_STATS_PATH);
+
+    // 强行挂载到 /sys/fs/bpf/ 目录下
+    if (bpf_map__pin(skel->maps.cml_params_map, PIN_PARAMS_PATH)) {
+        fprintf(stderr, "❌ Failed to pin cml_params_map\n");
+        goto cleanup;
+    }
+    if (bpf_map__pin(skel->maps.cml_stats_map, PIN_STATS_PATH)) {
+        fprintf(stderr, "❌ Failed to pin cml_stats_map\n");
+        goto cleanup;
+    }
+    printf("✅ Maps successfully pinned to /sys/fs/bpf/\n");
+
+    // 默认加载策略 0 (POLICY_LRU)
     __u32 map_key = 0;
     struct { __u32 active_policy; } params = {0};
     bpf_map_update_elem(bpf_map__fd(skel->maps.cml_params_map), &map_key, &params, BPF_ANY);
@@ -60,15 +82,21 @@ int main(int argc, char **argv) {
     link = bpf_map__attach_cache_ext_ops(skel->maps.chameleon_ops, cgroup_fd);
     if (!link) goto cleanup;
 
-    printf("Chameleon (4-Policy Router) successfully attached to cgroup!\n");
+    printf("🚀 Chameleon (4-Policy Router) successfully attached to cgroup!\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     
     while (!exiting) { pause(); }
 
 cleanup:
+    // 退出时打扫战场，拔掉 Pin 的文件
+    if (skel) {
+        bpf_map__unpin(skel->maps.cml_params_map, PIN_PARAMS_PATH);
+        bpf_map__unpin(skel->maps.cml_stats_map, PIN_STATS_PATH);
+    }
     if (cgroup_fd >= 0) close(cgroup_fd);
     bpf_link__destroy(link);
     chameleon_bpf__destroy(skel);
+    printf("\n🛑 Chameleon stopped and cleaned up.\n");
     return 0;
 }

@@ -141,17 +141,6 @@ void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
     }
 }
 
-// 通用回调：用于 LRU 和 MRU
-static int evict_lru_mru_cb(int idx, struct cache_ext_list_node *a) {
-    if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
-    if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio)) return CACHE_EXT_CONTINUE_ITER;
-
-    int hw_refs = bpf_folio_check_referenced(a->folio); 
-    if (hw_refs > 0) return CACHE_EXT_CONTINUE_ITER; // 硬件给的第二次机会
-    
-    return CACHE_EXT_EVICT_NODE;
-}
-
 // 评分回调：用于 LFU 近似采样
 static s64 lfu_score_cb(struct cache_ext_list_node *a) {
     __u64 key = (__u64)a->folio;
@@ -166,6 +155,29 @@ static s64 lfu_score_cb(struct cache_ext_list_node *a) {
     return total;
 }
 
+// LRU 专用：仁慈，给第二次机会
+static int evict_lru_cb(int idx, struct cache_ext_list_node *a) {
+    if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
+    if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio)) return CACHE_EXT_CONTINUE_ITER;
+
+    int hw_refs = bpf_folio_check_referenced(a->folio); 
+    if (hw_refs > 0) return CACHE_EXT_CONTINUE_ITER; 
+    
+    return CACHE_EXT_EVICT_NODE;
+}
+
+// MRU 专用：冷血，只要干净就直接杀
+static int evict_mru_cb(int idx, struct cache_ext_list_node *a) {
+    if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
+    if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio)) return CACHE_EXT_CONTINUE_ITER;
+
+    // 【关键】：MRU 不检查硬件访问位，强行清空硬件状态并驱逐！
+    bpf_folio_check_referenced(a->folio); // 只是调用一下以清除 PTE 上的硬件 A 位，防止残留
+    
+    return CACHE_EXT_EVICT_NODE;
+}
+
+
 void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *eviction_ctx, struct mem_cgroup *memcg) {
     __u32 param_key = 0;
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
@@ -173,11 +185,11 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
 
     // 【数据面分流】：调度对应的底层 C 执行器
     if (policy == POLICY_LRU) {
-        bpf_cache_ext_list_iterate(memcg, main_list, evict_lru_mru_cb, eviction_ctx);
+        bpf_cache_ext_list_iterate(memcg, main_list, evict_lru_cb, eviction_ctx);
     } 
     else if (policy == POLICY_MRU) {
-        bpf_cache_ext_list_iterate_reverse(memcg, main_list, evict_lru_mru_cb, eviction_ctx);
-    } 
+        bpf_cache_ext_list_iterate_reverse(memcg, main_list, evict_mru_cb, eviction_ctx);
+    }
     else if (policy == POLICY_SIEVE) {
         // 使用预处理宏，强制编译器展开循环。数字 32 是内核数组的最大容量。
         #pragma unroll

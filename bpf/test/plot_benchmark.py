@@ -33,7 +33,9 @@ def plot_benchmarks(csv_file):
         'Maximum resident set size (kbytes)',
         'Major (requiring I/O) page faults',
         'Minor (reclaiming a frame) page faults',
-        'File system inputs'
+        'File system inputs',
+        'Voluntary context switches',
+        'Involuntary context switches'
     ]
 
     # 将其他列转为数值类型，防止字符串导致绘图失败
@@ -45,7 +47,7 @@ def plot_benchmarks(csv_file):
     df_grouped = df.groupby(['Workload', 'Policy'])[metrics].mean().reset_index()
 
     # 设置 Matplotlib 画布，3行2列，共6幅图
-    fig, axes = plt.subplots(3, 2, figsize=(16, 18))
+    fig, axes = plt.subplots(4, 2, figsize=(16, 18))
     axes = axes.flatten()
 
     for i, metric in enumerate(metrics):

@@ -3,7 +3,7 @@
 # Define test scope
 set workloads wl1 wl2 wl3 wl4
 set policies lru mru sieve lfu linux_classic linux_mglru 
-set num_runs 3
+set num_runs 1
 
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
 set TEST_FILE "/tmp/test.dat"
@@ -26,7 +26,7 @@ for p in $policies
         for i in (seq $num_runs)
             echo "" | tee -a $RESULT_FILE
             echo "========================================================" | tee -a $RESULT_FILE
-            echo "▶▶▶ [Progress] Executing: Workload [$w] | Policy [$p] | Run: $i/3" | tee -a $RESULT_FILE
+            echo "▶▶▶ [Progress] Executing: Workload [$w] | Policy [$p] | Run: $i/$num_runs" | tee -a $RESULT_FILE
             echo "========================================================" | tee -a $RESULT_FILE
             
             # 1. Setup cgroup v2
@@ -68,21 +68,23 @@ for p in $policies
                 set CML_PID (pgrep -f "chameleon.out")
                 
                 echo "Waiting for eBPF probe to inject into kernel space..."
-                sleep 30
+                sleep 10
 
                 # Switch Policy (Ensure parameter format is correct)
+                set PIN_PATH "/sys/fs/bpf/cml_params_map"
+
                 switch $p
                     case "lru"
-                        sudo bpftool map update name cml_params_map key 0 0 0 0 value 0 0 0 0 > /dev/null
+                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 0 0 0 0 
                         echo "Chameleon switched to eBPF LRU mode!" | tee -a $RESULT_FILE
                     case "sieve"
-                        sudo bpftool map update name cml_params_map key 0 0 0 0 value 1 0 0 0 > /dev/null
+                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 1 0 0 0 
                         echo "Chameleon switched to eBPF SIEVE mode!" | tee -a $RESULT_FILE
                     case "mru"
-                        sudo bpftool map update name cml_params_map key 0 0 0 0 value 2 0 0 0 > /dev/null
+                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 2 0 0 0 
                         echo "Chameleon switched to eBPF MRU mode!" | tee -a $RESULT_FILE
                     case "lfu"
-                        sudo bpftool map update name cml_params_map key 0 0 0 0 value 3 0 0 0 > /dev/null
+                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 3 0 0 0 
                         echo "Chameleon switched to eBPF LFU mode!" | tee -a $RESULT_FILE
                 end
             end
