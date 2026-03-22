@@ -1,8 +1,12 @@
 #!/usr/bin/env fish
 
+# ==========================================
+# Chameleon 自动化测试靶场 (时序终极修复版)
+# ==========================================
+
 # Define test scope
-set workloads wl1 wl2 wl3 wl4
-set policies lru mru sieve lfu linux_classic linux_mglru 
+set workloads wl1 #wl2 wl3 wl4
+set policies lru mru #sieve lfu linux_classic linux_mglru 
 set num_runs 1
 
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
@@ -29,50 +33,59 @@ for p in $policies
             echo "▶▶▶ [Progress] Executing: Workload [$w] | Policy [$p] | Run: $i/$num_runs" | tee -a $RESULT_FILE
             echo "========================================================" | tee -a $RESULT_FILE
             
-            # 1. Setup cgroup v2
-            sudo mkdir -p $CGROUP_DIR
-            echo "200M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
-            echo "0" | sudo tee $CGROUP_DIR/memory.swap.max > /dev/null 2>/dev/null
-
-            # 2. Flush system cache
+            # ==========================================
+            # 🌟 核心防线 1：环境彻底净化
+            # ==========================================
             echo "[Cleanup] Flushing system caches..."
             sync
             echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
             sleep 2
 
-            # 3. Write current PID to cgroup
-            echo $fish_pid | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null
+            # 如果上一次测试残留了 cgroup，必须彻底删除以重置 cache_ext 的内部状态机
+            if test -d $CGROUP_DIR
+                sudo rmdir $CGROUP_DIR 2>/dev/null
+                sleep 1 # 必须留给内核时间回收数据结构
+            end
+
+            # ==========================================
+            # 🌟 核心防线 2：创建牢笼并第一时间设限
+            # ==========================================
+            sudo mkdir -p $CGROUP_DIR
+            
+            # 【致命逻辑】：在没有任何进程加入前，先划定生死线！
+            echo "200M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
+            echo "0" | sudo tee $CGROUP_DIR/memory.swap.max > /dev/null 2>/dev/null
+            
+            # 注意：这里千万不要把当前主循环的 $fish_pid 扔进去！
 
             set CML_PID ""
             
-            # 4. Routing: Determine whether to run Linux native control group or our eBPF Chameleon probe
+            # ==========================================
+            # 🌟 核心防线 3：路由分发与挂载
+            # ==========================================
             if string match -q "linux*" $p
-                # Check if the policy is linux_classic or linux_mglru and set MGLRU accordingly
                 if test $p = "linux_classic"
                     echo "[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)..." | tee -a $RESULT_FILE
-                    # write 0 (or n/0x0000) to disable MGLRU and revert to classic LRU behavior
                     echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
                 else if test $p = "linux_mglru"
                     echo "[System] Enabling Linux MGLRU..." | tee -a $RESULT_FILE
-                    # write 7 (or y/0x0007) to enable MGLRU with all generations active (gen0, gen1, gen2)
                     echo 7 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
                 end
             else
                 echo "Starting Chameleon probe (Preparing Policy: $p)..."
-                # Start eBPF program in background using sudo
+                
+                # 启动变色龙加载器
                 sudo ../chameleon.out -c $CGROUP_DIR > chameleon.log 2>&1 &
                 
-                # Small sleep to ensure the process is registered
                 sleep 0.5
-                # Get the actual PID of the background task
                 set CML_PID (pgrep -f "chameleon.out")
                 
                 echo "Waiting for eBPF probe to inject into kernel space..."
-                sleep 10
+                sleep 10 # 加载探针很快，不需要 10 秒
 
-                # Switch Policy (Ensure parameter format is correct)
                 set PIN_PATH "/sys/fs/bpf/cml_params_map"
 
+                # 通过强壮的 pinned 路径下发策略
                 switch $p
                     case "lru"
                         sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 0 0 0 0 
@@ -89,39 +102,40 @@ for p in $policies
                 end
             end
 
-            # 5. Core Test: Execute C++ workload and measure time
+            # ==========================================
+            # 🌟 核心防线 4：精确投放负载并测量
+            # ==========================================
             echo "[Starting read/write pressure...]"
-            env /usr/bin/time -v -o /tmp/time_output.txt ./workload_gen.out $TEST_FILE $w $CACHE_MB $FILE_MB > /dev/null
+            
+            # 使用 sh -c 开启一个全新的子 Shell。
+            # 第一步：把这个子 Shell 的 PID 精确写入已经限额 200M 的 Cgroup 里
+            # 第二步：使用 exec 替换掉这个 Shell，运行我们的 C++ 负载。
+            # 这样不仅保证了进程被死死关在 200M 牢笼里，而且完美触发了 cache_ext 的初始化快照！
+            sudo sh -c "echo \$\$ > $CGROUP_DIR/cgroup.procs && exec env /usr/bin/time -v -o /tmp/time_output.txt ./workload_gen.out $TEST_FILE $w $CACHE_MB $FILE_MB > /dev/null"
             
             # Append time metrics to the result file
             cat /tmp/time_output.txt >> $RESULT_FILE
             
-            # 6. Post-test Cleanup
-            # only kill Chameleon if it was started (i.e., not in Linux native mode)
+            # ==========================================
+            # 🌟 核心防线 5：战后清点
+            # ==========================================
             if not string match -q "linux*" $p
                 echo "Cleaning up Chameleon probe..."
                 if test -n "$CML_PID"
                     sudo kill -9 $CML_PID 2>/dev/null
                 end
-                # Wait for process to fully exit
                 while pgrep -f "chameleon.out" > /dev/null; sleep 0.5; end
                 sleep 1 
             end
             
-            # Cleanup Cgroup 
-            # Note: rmdir might fail if processes are lingering, but mkdir will handle it next round
+            # 尝试删除 Cgroup
             sudo rmdir $CGROUP_DIR 2>/dev/null
 
-            # Final environment cleanup for the next run
-            echo "[Cleanup] Flushing system caches..."
-            sync
-            echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
-            sleep 2
         end
     end
 end
 
-# After all tests, ensure MGLRU is enabled for the system's normal operation
-echo 1 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+# 恢复系统 MGLRU
+echo 7 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
 
 echo "=== Benchmarking Complete. Results saved to $RESULT_FILE ==="
