@@ -1,5 +1,92 @@
 === Chameleon Automation Benchmark Started ===
-Timestamp: Mon Mar 23 07:04:45 AM UTC 2026
+Timestamp: Mon Mar 23 09:02:29 AM UTC 2026
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [lru] | Run: 1/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF LRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.37
+	System time (seconds): 11.16
+	Percent of CPU this job got: 19%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:59.35
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 12
+	Minor (reclaiming a frame) page faults: 138
+	Voluntary context switches: 513677
+	Involuntary context switches: 140
+	Swaps: 0
+	File system inputs: 4109848
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [lru] | Run: 2/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF LRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.19
+	System time (seconds): 3.98
+	Percent of CPU this job got: 11%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:35.59
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 4
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 112752
+	Involuntary context switches: 22
+	Swaps: 0
+	File system inputs: 901800
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [lru] | Run: 3/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF LRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.20
+	System time (seconds): 4.90
+	Percent of CPU this job got: 9%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:55.91
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 5
+	Minor (reclaiming a frame) page faults: 138
+	Voluntary context switches: 166382
+	Involuntary context switches: 50
+	Swaps: 0
+	File system inputs: 1330344
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
 
 ========================================================
 ▶▶▶ [Progress] Executing: Workload [wl2] | Policy [lru] | Run: 1/3
@@ -7,22 +94,22 @@ Timestamp: Mon Mar 23 07:04:45 AM UTC 2026
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF LRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.86
-	System time (seconds): 28.75
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:49.49
+	User time (seconds): 0.89
+	System time (seconds): 27.40
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:48.91
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
 	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 27
-	Minor (reclaiming a frame) page faults: 162
-	Voluntary context switches: 1327829
-	Involuntary context switches: 138
+	Major (requiring I/O) page faults: 29
+	Minor (reclaiming a frame) page faults: 164
+	Voluntary context switches: 1333096
+	Involuntary context switches: 149
 	Swaps: 0
-	File system inputs: 10592664
+	File system inputs: 10634856
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -36,22 +123,22 @@ Chameleon switched to eBPF LRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF LRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.88
-	System time (seconds): 28.23
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:49.30
+	User time (seconds): 0.89
+	System time (seconds): 26.91
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:47.92
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3328
+	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 29
 	Minor (reclaiming a frame) page faults: 165
-	Voluntary context switches: 1333180
-	Involuntary context switches: 116
+	Voluntary context switches: 1333121
+	Involuntary context switches: 156
 	Swaps: 0
-	File system inputs: 10635632
+	File system inputs: 10635008
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -65,10 +152,10 @@ Chameleon switched to eBPF LRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF LRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.87
-	System time (seconds): 28.09
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:49.13
+	User time (seconds): 0.85
+	System time (seconds): 27.05
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:47.69
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -76,11 +163,11 @@ Chameleon switched to eBPF LRU mode!
 	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 29
-	Minor (reclaiming a frame) page faults: 165
-	Voluntary context switches: 1333195
-	Involuntary context switches: 150
+	Minor (reclaiming a frame) page faults: 164
+	Voluntary context switches: 1333088
+	Involuntary context switches: 95
 	Swaps: 0
-	File system inputs: 10635656
+	File system inputs: 10634704
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -94,22 +181,22 @@ Chameleon switched to eBPF LRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF LRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.87
-	System time (seconds): 42.77
-	Percent of CPU this job got: 28%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:49.96
+	User time (seconds): 5.80
+	System time (seconds): 40.69
+	Percent of CPU this job got: 27%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:47.52
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7424
+	Maximum resident set size (kbytes): 7296
 	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 35
-	Minor (reclaiming a frame) page faults: 1152
-	Voluntary context switches: 1257786
-	Involuntary context switches: 189
+	Major (requiring I/O) page faults: 34
+	Minor (reclaiming a frame) page faults: 1150
+	Voluntary context switches: 1256685
+	Involuntary context switches: 150
 	Swaps: 0
-	File system inputs: 9986096
+	File system inputs: 9977264
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -123,22 +210,22 @@ Chameleon switched to eBPF LRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF LRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 6.04
-	System time (seconds): 42.90
-	Percent of CPU this job got: 28%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:50.02
+	User time (seconds): 5.93
+	System time (seconds): 40.59
+	Percent of CPU this job got: 27%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:47.91
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7552
+	Maximum resident set size (kbytes): 7296
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 35
-	Minor (reclaiming a frame) page faults: 1153
-	Voluntary context switches: 1257436
-	Involuntary context switches: 194
+	Minor (reclaiming a frame) page faults: 1152
+	Voluntary context switches: 1257477
+	Involuntary context switches: 214
 	Swaps: 0
-	File system inputs: 9983304
+	File system inputs: 9983728
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -153,21 +240,195 @@ Chameleon switched to eBPF LRU mode!
 Chameleon switched to eBPF LRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
 	User time (seconds): 5.90
-	System time (seconds): 42.97
+	System time (seconds): 40.52
 	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:54.99
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:47.73
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7296
+	Maximum resident set size (kbytes): 7552
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 35
-	Minor (reclaiming a frame) page faults: 1151
-	Voluntary context switches: 1257834
-	Involuntary context switches: 222
+	Minor (reclaiming a frame) page faults: 1152
+	Voluntary context switches: 1257760
+	Involuntary context switches: 191
 	Swaps: 0
-	File system inputs: 9986512
+	File system inputs: 9985928
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [lru] | Run: 1/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF LRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 3.65
+	System time (seconds): 58.18
+	Percent of CPU this job got: 39%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:36.84
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 40
+	Minor (reclaiming a frame) page faults: 140
+	Voluntary context switches: 1279507
+	Involuntary context switches: 241
+	Swaps: 0
+	File system inputs: 10238240
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [lru] | Run: 2/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF LRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 3.71
+	System time (seconds): 57.80
+	Percent of CPU this job got: 39%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:36.07
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 41
+	Minor (reclaiming a frame) page faults: 138
+	Voluntary context switches: 1271490
+	Involuntary context switches: 243
+	Swaps: 0
+	File system inputs: 10174152
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [lru] | Run: 3/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF LRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 3.75
+	System time (seconds): 58.74
+	Percent of CPU this job got: 38%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:43.07
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 39
+	Minor (reclaiming a frame) page faults: 138
+	Voluntary context switches: 1275606
+	Involuntary context switches: 204
+	Swaps: 0
+	File system inputs: 10206976
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [sieve] | Run: 1/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF SIEVE mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.30
+	System time (seconds): 6.74
+	Percent of CPU this job got: 12%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:55.83
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3584
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 3
+	Minor (reclaiming a frame) page faults: 140
+	Voluntary context switches: 273221
+	Involuntary context switches: 88
+	Swaps: 0
+	File system inputs: 2185432
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [sieve] | Run: 2/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF SIEVE mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.43
+	System time (seconds): 10.25
+	Percent of CPU this job got: 33%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:32.05
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 3
+	Minor (reclaiming a frame) page faults: 138
+	Voluntary context switches: 455897
+	Involuntary context switches: 148
+	Swaps: 0
+	File system inputs: 3647816
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [sieve] | Run: 3/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF SIEVE mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.40
+	System time (seconds): 9.13
+	Percent of CPU this job got: 33%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:28.66
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 3
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 399480
+	Involuntary context switches: 146
+	Swaps: 0
+	File system inputs: 3196352
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -181,22 +442,22 @@ Chameleon switched to eBPF LRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF SIEVE mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.93
-	System time (seconds): 24.17
-	Percent of CPU this job got: 25%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:36.74
+	User time (seconds): 0.85
+	System time (seconds): 22.99
+	Percent of CPU this job got: 24%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:36.12
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3456
+	Maximum resident set size (kbytes): 3328
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
 	Minor (reclaiming a frame) page faults: 138
-	Voluntary context switches: 1253403
-	Involuntary context switches: 133
+	Voluntary context switches: 1257242
+	Involuntary context switches: 132
 	Swaps: 0
-	File system inputs: 9996208
+	File system inputs: 10026832
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -210,10 +471,10 @@ Chameleon switched to eBPF SIEVE mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF SIEVE mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.89
-	System time (seconds): 24.46
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:37.44
+	User time (seconds): 0.90
+	System time (seconds): 23.13
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:36.04
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -221,11 +482,11 @@ Chameleon switched to eBPF SIEVE mode!
 	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
-	Minor (reclaiming a frame) page faults: 137
-	Voluntary context switches: 1254999
-	Involuntary context switches: 144
+	Minor (reclaiming a frame) page faults: 136
+	Voluntary context switches: 1255523
+	Involuntary context switches: 108
 	Swaps: 0
-	File system inputs: 10008952
+	File system inputs: 10013296
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -239,22 +500,22 @@ Chameleon switched to eBPF SIEVE mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF SIEVE mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.91
-	System time (seconds): 24.53
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:37.49
+	User time (seconds): 0.85
+	System time (seconds): 23.28
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:36.03
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3456
+	Maximum resident set size (kbytes): 3328
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
 	Minor (reclaiming a frame) page faults: 138
-	Voluntary context switches: 1254502
-	Involuntary context switches: 108
+	Voluntary context switches: 1255788
+	Involuntary context switches: 116
 	Swaps: 0
-	File system inputs: 10004928
+	File system inputs: 10015344
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -268,22 +529,22 @@ Chameleon switched to eBPF SIEVE mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF SIEVE mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.73
-	System time (seconds): 36.11
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:34.58
+	User time (seconds): 5.62
+	System time (seconds): 33.31
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:31.28
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7296
+	Maximum resident set size (kbytes): 7680
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 3
-	Minor (reclaiming a frame) page faults: 1117
-	Voluntary context switches: 1181382
-	Involuntary context switches: 193
+	Minor (reclaiming a frame) page faults: 1119
+	Voluntary context switches: 1178454
+	Involuntary context switches: 171
 	Swaps: 0
-	File system inputs: 9373304
+	File system inputs: 9349872
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -297,10 +558,10 @@ Chameleon switched to eBPF SIEVE mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF SIEVE mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.71
-	System time (seconds): 35.99
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:34.35
+	User time (seconds): 5.56
+	System time (seconds): 33.41
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:31.52
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -309,10 +570,10 @@ Chameleon switched to eBPF SIEVE mode!
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 3
 	Minor (reclaiming a frame) page faults: 1119
-	Voluntary context switches: 1179511
-	Involuntary context switches: 229
+	Voluntary context switches: 1178534
+	Involuntary context switches: 197
 	Swaps: 0
-	File system inputs: 9358384
+	File system inputs: 9350560
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -326,22 +587,196 @@ Chameleon switched to eBPF SIEVE mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF SIEVE mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.61
-	System time (seconds): 35.98
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:34.17
+	User time (seconds): 5.55
+	System time (seconds): 33.38
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:31.53
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7424
+	Maximum resident set size (kbytes): 7296
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 3
-	Minor (reclaiming a frame) page faults: 1119
-	Voluntary context switches: 1180697
-	Involuntary context switches: 195
+	Minor (reclaiming a frame) page faults: 1117
+	Voluntary context switches: 1179694
+	Involuntary context switches: 225
 	Swaps: 0
-	File system inputs: 9367848
+	File system inputs: 9359808
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [sieve] | Run: 1/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF SIEVE mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 5.74
+	System time (seconds): 151.64
+	Percent of CPU this job got: 21%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 12:02.70
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 148
+	Minor (reclaiming a frame) page faults: 136
+	Voluntary context switches: 7712221
+	Involuntary context switches: 696
+	Swaps: 0
+	File system inputs: 61705264
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [sieve] | Run: 2/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF SIEVE mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 5.72
+	System time (seconds): 151.63
+	Percent of CPU this job got: 21%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 12:21.18
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 58
+	Minor (reclaiming a frame) page faults: 139
+	Voluntary context switches: 7723098
+	Involuntary context switches: 662
+	Swaps: 0
+	File system inputs: 61787136
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [sieve] | Run: 3/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF SIEVE mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 5.81
+	System time (seconds): 150.40
+	Percent of CPU this job got: 21%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 12:00.65
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3584
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 78
+	Minor (reclaiming a frame) page faults: 136
+	Voluntary context switches: 7722436
+	Involuntary context switches: 684
+	Swaps: 0
+	File system inputs: 61783648
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [mru] | Run: 1/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF MRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.33
+	System time (seconds): 7.80
+	Percent of CPU this job got: 34%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:23.85
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 337023
+	Involuntary context switches: 181
+	Swaps: 0
+	File system inputs: 2696584
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [mru] | Run: 2/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF MRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.33
+	System time (seconds): 7.67
+	Percent of CPU this job got: 34%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:23.44
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 331642
+	Involuntary context switches: 129
+	Swaps: 0
+	File system inputs: 2653640
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+========================================================
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [mru] | Run: 3/3
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Chameleon switched to eBPF MRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl1 200 5000"
+	User time (seconds): 0.31
+	System time (seconds): 7.57
+	Percent of CPU this job got: 33%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:23.58
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3456
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 333644
+	Involuntary context switches: 200
+	Swaps: 0
+	File system inputs: 2669664
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -355,10 +790,10 @@ Chameleon switched to eBPF SIEVE mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF MRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.89
-	System time (seconds): 23.98
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:33.16
+	User time (seconds): 0.88
+	System time (seconds): 23.27
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:33.14
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -367,10 +802,10 @@ Chameleon switched to eBPF MRU mode!
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
 	Minor (reclaiming a frame) page faults: 139
-	Voluntary context switches: 1221028
-	Involuntary context switches: 101
+	Voluntary context switches: 1221850
+	Involuntary context switches: 115
 	Swaps: 0
-	File system inputs: 9737136
+	File system inputs: 9743688
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -384,10 +819,10 @@ Chameleon switched to eBPF MRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF MRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.88
-	System time (seconds): 24.39
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:33.48
+	User time (seconds): 0.95
+	System time (seconds): 23.37
+	Percent of CPU this job got: 26%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:33.41
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -395,11 +830,11 @@ Chameleon switched to eBPF MRU mode!
 	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
-	Minor (reclaiming a frame) page faults: 136
-	Voluntary context switches: 1220241
-	Involuntary context switches: 76
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 1222795
+	Involuntary context switches: 92
 	Swaps: 0
-	File system inputs: 9730600
+	File system inputs: 9751232
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -413,10 +848,10 @@ Chameleon switched to eBPF MRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF MRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.92
-	System time (seconds): 24.35
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:33.92
+	User time (seconds): 0.88
+	System time (seconds): 23.41
+	Percent of CPU this job got: 25%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:33.56
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -424,11 +859,11 @@ Chameleon switched to eBPF MRU mode!
 	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
-	Minor (reclaiming a frame) page faults: 138
-	Voluntary context switches: 1221110
-	Involuntary context switches: 123
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 1223462
+	Involuntary context switches: 119
 	Swaps: 0
-	File system inputs: 9737704
+	File system inputs: 9756544
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -442,22 +877,22 @@ Chameleon switched to eBPF MRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF MRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 6.35
-	System time (seconds): 75.01
-	Percent of CPU this job got: 18%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:14.82
+	User time (seconds): 6.41
+	System time (seconds): 71.16
+	Percent of CPU this job got: 17%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:17.54
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7424
+	Maximum resident set size (kbytes): 7296
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
-	Minor (reclaiming a frame) page faults: 1119
-	Voluntary context switches: 3538685
-	Involuntary context switches: 291
+	Minor (reclaiming a frame) page faults: 1117
+	Voluntary context switches: 3526298
+	Involuntary context switches: 437
 	Swaps: 0
-	File system inputs: 28231880
+	File system inputs: 28132728
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -471,10 +906,10 @@ Chameleon switched to eBPF MRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF MRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 6.29
-	System time (seconds): 76.18
+	User time (seconds): 6.52
+	System time (seconds): 72.85
 	Percent of CPU this job got: 18%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:23.83
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:12.18
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -482,11 +917,11 @@ Chameleon switched to eBPF MRU mode!
 	Maximum resident set size (kbytes): 7296
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
-	Minor (reclaiming a frame) page faults: 1118
-	Voluntary context switches: 3551925
-	Involuntary context switches: 372
+	Minor (reclaiming a frame) page faults: 1117
+	Voluntary context switches: 3515133
+	Involuntary context switches: 341
 	Swaps: 0
-	File system inputs: 28337720
+	File system inputs: 28043432
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -500,10 +935,10 @@ Chameleon switched to eBPF MRU mode!
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF MRU mode!
 	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 6.42
-	System time (seconds): 75.75
+	User time (seconds): 6.41
+	System time (seconds): 72.42
 	Percent of CPU this job got: 18%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:16.25
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 7:13.57
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
@@ -511,11 +946,11 @@ Chameleon switched to eBPF MRU mode!
 	Maximum resident set size (kbytes): 7296
 	Average resident set size (kbytes): 0
 	Major (requiring I/O) page faults: 2
-	Minor (reclaiming a frame) page faults: 1117
-	Voluntary context switches: 3538700
-	Involuntary context switches: 340
+	Minor (reclaiming a frame) page faults: 1116
+	Voluntary context switches: 3536663
+	Involuntary context switches: 304
 	Swaps: 0
-	File system inputs: 28231888
+	File system inputs: 28215576
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -524,85 +959,27 @@ Chameleon switched to eBPF MRU mode!
 	Exit status: 0
 
 ========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [lfu] | Run: 1/3
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [mru] | Run: 1/3
 ========================================================
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-Chameleon switched to eBPF LFU mode!
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.77
-	System time (seconds): 39.84
-	Percent of CPU this job got: 30%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:13.69
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3328
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 12
-	Minor (reclaiming a frame) page faults: 136
-	Voluntary context switches: 1344375
-	Involuntary context switches: 325
-	Swaps: 0
-	File system inputs: 10723920
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [lfu] | Run: 2/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-Chameleon switched to eBPF LFU mode!
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.78
-	System time (seconds): 39.44
-	Percent of CPU this job got: 32%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:01.95
+Chameleon switched to eBPF MRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 6.48
+	System time (seconds): 180.36
+	Percent of CPU this job got: 21%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 14:37.87
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
 	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 8
-	Minor (reclaiming a frame) page faults: 138
-	Voluntary context switches: 1344075
-	Involuntary context switches: 281
-	Swaps: 0
-	File system inputs: 10721408
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [lfu] | Run: 3/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-Chameleon switched to eBPF LFU mode!
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.84
-	System time (seconds): 39.25
-	Percent of CPU this job got: 32%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:02.02
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3456
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 6
+	Major (requiring I/O) page faults: 2
 	Minor (reclaiming a frame) page faults: 137
-	Voluntary context switches: 1344351
-	Involuntary context switches: 306
+	Voluntary context switches: 9371191
+	Involuntary context switches: 755
 	Swaps: 0
-	File system inputs: 10723672
+	File system inputs: 74970160
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -611,113 +988,27 @@ Chameleon switched to eBPF LFU mode!
 	Exit status: 0
 
 ========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [lfu] | Run: 1/3
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [mru] | Run: 2/3
 ========================================================
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-Chameleon switched to eBPF LFU mode!
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 4.83
-	System time (seconds): 53.46
-	Percent of CPU this job got: 30%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:13.32
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7424
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 6
-	Minor (reclaiming a frame) page faults: 1118
-	Voluntary context switches: 1381327
-	Involuntary context switches: 1042
-	Swaps: 0
-	File system inputs: 10972944
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [lfu] | Run: 2/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-Chameleon switched to eBPF LFU mode!
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 4.98
-	System time (seconds): 53.11
-	Percent of CPU this job got: 30%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:12.72
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7552
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 9
-	Minor (reclaiming a frame) page faults: 1119
-	Voluntary context switches: 1381183
-	Involuntary context switches: 1420
-	Swaps: 0
-	File system inputs: 10971880
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [lfu] | Run: 3/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-Chameleon switched to eBPF LFU mode!
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 4.80
-	System time (seconds): 53.54
-	Percent of CPU this job got: 30%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:13.31
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7424
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 5
-	Minor (reclaiming a frame) page faults: 1117
-	Voluntary context switches: 1381180
-	Involuntary context switches: 1160
-	Swaps: 0
-	File system inputs: 10971752
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [linux_classic] | Run: 1/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.85
-	System time (seconds): 22.44
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:29.07
+Chameleon switched to eBPF MRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 6.38
+	System time (seconds): 180.76
+	Percent of CPU this job got: 21%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 14:31.48
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
 	Maximum resident set size (kbytes): 3456
 	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 9
-	Minor (reclaiming a frame) page faults: 132
-	Voluntary context switches: 1193954
-	Involuntary context switches: 62
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 137
+	Voluntary context switches: 9371160
+	Involuntary context switches: 710
 	Swaps: 0
-	File system inputs: 9521104
+	File system inputs: 74969960
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -726,26 +1017,27 @@ Chameleon switched to eBPF LFU mode!
 	Exit status: 0
 
 ========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [linux_classic] | Run: 2/3
+▶▶▶ [Progress] Executing: Workload [wl4] | Policy [mru] | Run: 3/3
 ========================================================
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.87
-	System time (seconds): 22.33
-	Percent of CPU this job got: 25%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:29.28
+Chameleon switched to eBPF MRU mode!
+	Command being timed: "./workload_gen.out /tmp/test.dat wl4 200 5000"
+	User time (seconds): 6.61
+	System time (seconds): 181.17
+	Percent of CPU this job got: 21%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 14:32.91
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3328
+	Maximum resident set size (kbytes): 3584
 	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 9
-	Minor (reclaiming a frame) page faults: 131
-	Voluntary context switches: 1193894
-	Involuntary context switches: 102
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 136
+	Voluntary context switches: 9371285
+	Involuntary context switches: 754
 	Swaps: 0
-	File system inputs: 9520656
+	File system inputs: 74971024
 	File system outputs: 0
 	Socket messages sent: 0
 	Socket messages received: 0
@@ -754,281 +1046,6 @@ Chameleon switched to eBPF LFU mode!
 	Exit status: 0
 
 ========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [linux_classic] | Run: 3/3
+▶▶▶ [Progress] Executing: Workload [wl1] | Policy [linux_classic] | Run: 1/3
 ========================================================
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.86
-	System time (seconds): 22.25
-	Percent of CPU this job got: 25%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:29.10
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3456
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 9
-	Minor (reclaiming a frame) page faults: 130
-	Voluntary context switches: 1193805
-	Involuntary context switches: 128
-	Swaps: 0
-	File system inputs: 9519744
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [linux_classic] | Run: 1/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.69
-	System time (seconds): 34.74
-	Percent of CPU this job got: 24%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:42.90
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7424
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 9
-	Minor (reclaiming a frame) page faults: 1112
-	Voluntary context switches: 1211992
-	Involuntary context switches: 256
-	Swaps: 0
-	File system inputs: 9618664
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [linux_classic] | Run: 2/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.53
-	System time (seconds): 34.54
-	Percent of CPU this job got: 25%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:37.17
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7296
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 9
-	Minor (reclaiming a frame) page faults: 1112
-	Voluntary context switches: 1212216
-	Involuntary context switches: 242
-	Swaps: 0
-	File system inputs: 9620480
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [linux_classic] | Run: 3/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.70
-	System time (seconds): 34.71
-	Percent of CPU this job got: 25%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:38.00
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7296
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 9
-	Minor (reclaiming a frame) page faults: 1112
-	Voluntary context switches: 1212484
-	Involuntary context switches: 307
-	Swaps: 0
-	File system inputs: 9622576
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [linux_mglru] | Run: 1/3
-========================================================
-[System] Enabling Linux MGLRU...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.85
-	System time (seconds): 21.23
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:22.21
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3328
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 8
-	Minor (reclaiming a frame) page faults: 132
-	Voluntary context switches: 1136982
-	Involuntary context switches: 109
-	Swaps: 0
-	File system inputs: 9065192
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [linux_mglru] | Run: 2/3
-========================================================
-[System] Enabling Linux MGLRU...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.86
-	System time (seconds): 21.35
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:21.99
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3456
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 8
-	Minor (reclaiming a frame) page faults: 130
-	Voluntary context switches: 1137003
-	Involuntary context switches: 74
-	Swaps: 0
-	File system inputs: 9065472
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl2] | Policy [linux_mglru] | Run: 3/3
-========================================================
-[System] Enabling Linux MGLRU...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl2 200 5000"
-	User time (seconds): 0.82
-	System time (seconds): 20.96
-	Percent of CPU this job got: 26%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:21.85
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3456
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 8
-	Minor (reclaiming a frame) page faults: 131
-	Voluntary context switches: 1137004
-	Involuntary context switches: 114
-	Swaps: 0
-	File system inputs: 9065360
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [linux_mglru] | Run: 1/3
-========================================================
-[System] Enabling Linux MGLRU...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.76
-	System time (seconds): 31.98
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:18.10
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7296
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 8
-	Minor (reclaiming a frame) page faults: 1111
-	Voluntary context switches: 1060849
-	Involuntary context switches: 159
-	Swaps: 0
-	File system inputs: 8409520
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [linux_mglru] | Run: 2/3
-========================================================
-[System] Enabling Linux MGLRU...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.76
-	System time (seconds): 31.76
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:17.64
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7296
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 8
-	Minor (reclaiming a frame) page faults: 1110
-	Voluntary context switches: 1060491
-	Involuntary context switches: 140
-	Swaps: 0
-	File system inputs: 8406616
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl3] | Policy [linux_mglru] | Run: 3/3
-========================================================
-[System] Enabling Linux MGLRU...
-	Command being timed: "./workload_gen.out /tmp/test.dat wl3 200 5000"
-	User time (seconds): 5.84
-	System time (seconds): 31.62
-	Percent of CPU this job got: 27%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:17.71
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 7296
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 8
-	Minor (reclaiming a frame) page faults: 1112
-	Voluntary context switches: 1060975
-	Involuntary context switches: 147
-	Swaps: 0
-	File system inputs: 8410512
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
