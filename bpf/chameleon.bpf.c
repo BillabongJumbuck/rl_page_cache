@@ -14,7 +14,7 @@ enum policy_type {
     POLICY_LRU   = 0,
     POLICY_SIEVE = 1,
     POLICY_MRU   = 2,
-    POLICY_LFU   = 3,
+    // POLICY_LFU 已经被彻底移除
 };
 
 struct rl_params { __u32 active_policy; };
@@ -38,19 +38,14 @@ struct {
 
 static u64 main_list; 
 
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 200000); 
-    __type(key, __u64); 
-    __type(value, u32); 
-} folio_meta_map SEC(".maps");
+// folio_meta_map 已被完全移除，彻底消除了软件维度的打分和 Map 锁开销！
 
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH); 
     __uint(max_entries, 200000); 
     __type(key, __u64);
     __type(value, u8); 
-} ghost_map SEC(".maps");
+} ghost_map SEC(".maps"); // 暂时保留声明，留作后续 RL Regret 通信的占位符
 
 #if CML_DEBUG
 // 调试计数器仅在 DEBUG 模式下分配内存
@@ -89,10 +84,8 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
 
     if (policy == POLICY_LRU) bpf_cache_ext_list_add_tail(main_list, folio);
     else bpf_cache_ext_list_add(main_list, folio);
-
-    __u64 key = (__u64)folio;
-    u32 initial_score = 0; 
-    bpf_map_update_elem(&folio_meta_map, &key, &initial_score, BPF_ANY);
+    
+    // 原本 folio_meta_map 的 update 被干掉了，极其流畅
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
@@ -106,9 +99,7 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     if (!params) return;
 
-    __u64 key = (__u64)folio;
-    u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
-    if (!score) return; 
+    // 原本基于 folio_meta_map 的 lookup 被干掉了，零开销！
 
     switch (params->active_policy) {
         case POLICY_LRU:
@@ -118,19 +109,14 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
             bpf_cache_ext_list_move(main_list, folio, false); 
             break;
         case POLICY_SIEVE:
+            // 极致极简：什么都不用做，底层自带扫描机制处理 A-bit
             break;
-        case POLICY_LFU:
-            if (*score < 10000) __sync_fetch_and_add(score, 1);
-            break;
+        // POLICY_LFU 彻底消失了
     }
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
-    __u64 key = (__u64)folio;
-    u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
-    if (!score) {
-        return; 
-    }
+    // folio_meta_map 的 lookup 和 delete 被移除了
     
 #if CML_DEBUG
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -140,32 +126,11 @@ void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
 #endif
 
     bpf_cache_ext_list_del(folio);
-    bpf_map_delete_elem(&folio_meta_map, &key);
 }
 
-static s64 lfu_score_cb(struct cache_ext_list_node *a) {
-    __u64 key = (__u64)a->folio;
-    u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
-    
-    // 提取硬件访问位并清理（防止 A-bit 堆积）
-    int hw_refs = bpf_folio_check_referenced(a->folio);
-    s64 total = hw_refs;
-    
-    if (score) {
-        // 加上硬件层面最近抓到的访问
-        if (hw_refs > 0) {
-            __sync_fetch_and_add(score, hw_refs); 
-        }
-        total += *score;
-        
-        // 【关键修复：衰减 Aging】
-        // 每次被内核选中放入 32 人采样池时，历史分数减半
-        // 配合 LFU 的特性，保证陈旧的热点数据最终会“凉透”并被驱逐
-        *score >>= 1; 
-    }
-    return total;
-}
-
+// ==========================================
+// 核心驱逐逻辑 (仅保留最能打的)
+// ==========================================
 static int evict_lru_cb(int idx, struct cache_ext_list_node *a) {
     if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
     if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio) || folio_test_locked(a->folio)) return CACHE_EXT_CONTINUE_ITER;
@@ -252,10 +217,6 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
             eviction_ctx->folios_to_evict[i] = victim;
             eviction_ctx->nr_folios_to_evict = i + 1;
         }
-    }
-    else if (policy == POLICY_LFU) {
-        struct sampling_options opts = { .sample_size = 32 };
-        bpf_cache_ext_list_sample(memcg, main_list, lfu_score_cb, &opts, eviction_ctx);
     }
 }
 

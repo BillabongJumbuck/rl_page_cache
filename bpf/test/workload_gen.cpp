@@ -53,34 +53,32 @@ void workload_loop(int fd, int cache_pages) {
     delete[] buf;
 }
 
-// =========================================================================
-// Workload 2: 热区 + 偶发全表扫描 (Hotset with Scan Thrashing)
-// 预期获胜者：SIEVE (FIFO类)
-// 模式：大部分时间在访问一个小热区，中途突然切入一次全表顺序扫描。
-// =========================================================================
 void workload_scan_thrash(int fd, int cache_pages, int total_file_pages) {
-    std::cout << ">>> 执行 Workload 2: 热区+偶发全表扫描 (预期 SIEVE 胜出)" << std::endl;
+    std::cout << ">>> 执行 Workload 2: 密集热区+交替冷扫描 (预期 SIEVE 胜出)" << std::endl;
     std::mt19937 gen(42);
-    // 热区只占缓存的 30%
-    int hot_zone = cache_pages * 0.3;
+    
+    // 热区放大到缓存的 90%，如果 LRU 被冲刷，惩罚将极其惨重
+    int hot_zone = cache_pages * 0.9;
     std::uniform_int_distribution<> hot_dist(0, hot_zone);
     char* buf = new char[PAGE_SIZE];
 
-    // 1. 先进行大量热区访问，让所有算法建立热点
-    for (int i = 0; i < 200000; i++) {
-        pread(fd, buf, PAGE_SIZE, (off_t)hot_dist(gen) * PAGE_SIZE);
-    }
-
-    // 2. 突然切入一次洪峰：全表顺序扫描（完全不重复的冷数据）
-    for (int i = hot_zone + 1; i < total_file_pages; i++) {
-        pread(fd, buf, PAGE_SIZE, (off_t)i * PAGE_SIZE);
-    }
-
-    // 3. 扫描过后，立刻恢复热区访问。
-    // 如果是 LRU，此时热点已经全军覆没，这部分会全是 Miss。
-    // 如果是 SIEVE，刚才的全表扫描不会挤掉热点，这部分依然全是 Hit。
-    for (int i = 0; i < 100000; i++) {
-        pread(fd, buf, PAGE_SIZE, (off_t)hot_dist(gen) * PAGE_SIZE);
+    // 进行 10 轮惨烈的攻防战
+    for (int round = 0; round < 10; round++) {
+        // 1. 密集访问热区，让页面被打上硬件 accessed 标记
+        for (int i = 0; i < 50000; i++) {
+            pread(fd, buf, PAGE_SIZE, (off_t)hot_dist(gen) * PAGE_SIZE);
+        }
+        
+        // 2. 引入洪峰：每次用一段全新的、2倍于缓存容量的冷数据进行扫描
+        int scan_start = hot_zone + 1 + round * (cache_pages * 2);
+        int scan_end = scan_start + (cache_pages * 2);
+        if (scan_end > total_file_pages) scan_end = total_file_pages; // 防越界
+        
+        for (int i = scan_start; i < scan_end; i++) {
+            pread(fd, buf, PAGE_SIZE, (off_t)i * PAGE_SIZE);
+            // 给后台 BPF 留一点点喘息时间
+            if (i % 256 == 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
     }
     delete[] buf;
 }
@@ -88,18 +86,26 @@ void workload_scan_thrash(int fd, int cache_pages, int total_file_pages) {
 // =========================================================================
 // Workload 3: 强偏斜频次分布 (Highly Skewed Zipfian)
 // 预期获胜者：LFU
-// 模式：极端少数页面被极高频访问，其余页面伴随随机散列访问。
+// 模式：降低一点倾斜度，暴增访问量，使得工作集远远突破缓存。
 // =========================================================================
 void workload_zipfian(int fd, int cache_pages, int total_file_pages) {
     std::cout << ">>> 执行 Workload 3: 强偏斜频次分布 (预期 LFU 胜出)" << std::endl;
     std::mt19937 gen(1337);
-    // Alpha=1.2 意味着极强的倾斜
-    ZipfianGenerator zipf(total_file_pages, 1.2); 
+    
+    // 只在文件的前 2GB 范围内生成 Zipfian（约 50万个页面）
+    // 防止初始化 CDF 数组时耗时过长，同时也保证冷页面足够多来冲击缓存
+    int zipf_range = std::min(total_file_pages, 500000);
+    // Alpha 设为 0.99，长尾会更厚，必然击穿 200M (51200页) 的缓存
+    ZipfianGenerator zipf(zipf_range, 0.99); 
     char* buf = new char[PAGE_SIZE];
 
-    for (int i = 0; i < 500000; i++) {
+    // 访问量暴增到 500 万次
+    for (int i = 0; i < 5000000; i++) {
         int page_idx = zipf.next(gen);
         pread(fd, buf, PAGE_SIZE, (off_t)page_idx * PAGE_SIZE);
+        
+        // 限速防止 Direct Reclaim 绕过 BPF
+        if (i % 512 == 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     delete[] buf;
 }

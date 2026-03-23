@@ -26,11 +26,11 @@ def plot_benchmarks(csv_file):
     time_col = [c for c in df.columns if 'Elapsed' in c][0]
     df['Elapsed Time (s)'] = df[time_col].apply(parse_elapsed_time)
 
-    # 需要绘制的 6 个指标
+    # 需要绘制的指标
     metrics = [
         'Percent of CPU this job got',
         'Elapsed Time (s)',
-        'Maximum resident set size (kbytes)',
+        'System time (seconds)',
         'Major (requiring I/O) page faults',
         'Minor (reclaiming a frame) page faults',
         'File system inputs',
@@ -46,8 +46,10 @@ def plot_benchmarks(csv_file):
     # 按 Workload 和 Policy 分组求平均值（自动将 3 次 Run 的结果平均）
     df_grouped = df.groupby(['Workload', 'Policy'])[metrics].mean().reset_index()
 
-    # 设置 Matplotlib 画布，3行2列，共6幅图
-    fig, axes = plt.subplots(4, 2, figsize=(16, 18))
+    # 设置 Matplotlib 画布（2列，行数根据指标数量自动计算）
+    n_cols = 2
+    n_rows = (len(metrics) + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 3.6 * n_rows))
     axes = axes.flatten()
 
     for i, metric in enumerate(metrics):
@@ -61,6 +63,10 @@ def plot_benchmarks(csv_file):
         ax.set_xlabel('Workload')
         ax.grid(axis='y', linestyle='--', alpha=0.7)
         ax.legend(title='Policy')
+
+    # 隐藏多余子图（当指标数量不是偶数时）
+    for j in range(len(metrics), len(axes)):
+        axes[j].axis('off')
 
     # 调整布局并保存
     plt.tight_layout()

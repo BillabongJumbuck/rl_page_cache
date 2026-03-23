@@ -5,8 +5,8 @@
 # ==========================================
 
 # Define test scope
-set workloads wl1 wl2 wl3 wl4
-set policies lru sieve mru lfu linux_classic linux_mglru 
+set workloads wl1 wl2 wl3 wl4 
+set policies lru sieve mru linux_classic linux_mglru 
 set num_runs 3
 
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
