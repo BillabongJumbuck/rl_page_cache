@@ -200,16 +200,9 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     u32 policy = params ? params->active_policy : POLICY_LRU;
 
-    // 每触发 100 次 batch 打印一次，防止刷屏，同时填入真实的 policy 变量
-    if ((__sync_fetch_and_add(&evict_trigger_cnt, 1) % 100) == 0) {
-        bpf_printk("[CML-EVICT-TRIGGER] Policy:%d, Req:%d\n", 
-                   policy, 
-                   eviction_ctx->request_nr_folios_to_evict);
-    }
-
-    // 雷达：整个驱逐批次触发了！
-    if (__sync_fetch_and_add(&evict_trigger_cnt, 1) < 10) {
-        bpf_printk("[CML-RADAR] EVICT_FOLIOS batch triggered! Policy: %d\n", policy);
+    if (__sync_fetch_and_add(&evict_trigger_cnt, 1) < 50) {
+        bpf_printk("[CML-RADAR] EVICT TRIGGERED! Policy: %d, Req: %d\n", 
+                   policy, eviction_ctx->request_nr_folios_to_evict);
     }
 
     // 每次触发驱逐，重置 MRU 的节点级调试计数器，确保能看到最新的前 20 个页面

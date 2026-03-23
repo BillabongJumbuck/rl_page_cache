@@ -6,6 +6,8 @@
 #include <string.h>
 #include <chrono>
 #include <algorithm>
+#include <thread>
+#include <chrono>
 
 const int PAGE_SIZE = 4096;
 
