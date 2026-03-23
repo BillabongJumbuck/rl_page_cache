@@ -5,13 +5,14 @@
 # ==========================================
 
 # Define test scope
-set workloads wl1 #wl2 wl3 wl4
-set policies lru mru #sieve lfu linux_classic linux_mglru 
-set num_runs 1
+set workloads wl1 wl2 wl3 wl4
+set policies lru sieve mru lfu linux_classic linux_mglru 
+set num_runs 3
 
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
 set TEST_FILE "/tmp/test.dat"
-set CACHE_MB 200
+set CACHE_MB 200       # 缓存目标水位 200MB
+set MAX_MB 350         # 硬墙设为 210MB！
 set FILE_MB 5000
 set RESULT_FILE "result.txt"
 
@@ -41,10 +42,9 @@ for p in $policies
             echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
             sleep 2
 
-            # 如果上一次测试残留了 cgroup，必须彻底删除以重置 cache_ext 的内部状态机
             if test -d $CGROUP_DIR
                 sudo rmdir $CGROUP_DIR 2>/dev/null
-                sleep 1 # 必须留给内核时间回收数据结构
+                sleep 1 
             end
 
             # ==========================================
@@ -52,36 +52,40 @@ for p in $policies
             # ==========================================
             sudo mkdir -p $CGROUP_DIR
             
-            # 【致命逻辑】：在没有任何进程加入前，先划定生死线！
-            echo "200M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
+            # 【关键修复】：设置高水位线 (memory.high) 作为 eBPF 触发器
+            # 设置硬墙 (memory.max) 作为最后防线，拉开缓冲距离！
+            echo "350M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
+            echo "200M" | sudo tee $CGROUP_DIR/memory.high > /dev/null
             echo "0" | sudo tee $CGROUP_DIR/memory.swap.max > /dev/null 2>/dev/null
-            
-            # 注意：这里千万不要把当前主循环的 $fish_pid 扔进去！
 
             set CML_PID ""
             
             # ==========================================
-            # 🌟 核心防线 3：路由分发与挂载
+            # 🌟 核心防线 3：路由分发与挂载 (含 MGLRU 修复)
             # ==========================================
-            if string match -q "linux*" $p
-                if test $p = "linux_classic"
-                    echo "[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)..." | tee -a $RESULT_FILE
-                    echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
-                else if test $p = "linux_mglru"
-                    echo "[System] Enabling Linux MGLRU..." | tee -a $RESULT_FILE
-                    echo 7 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
-                end
+            
+            # 【关键修复】：只有测试 linux_mglru 时才开启，其余情况全部关闭！
+            if test $p = "linux_mglru"
+                echo "[System] Enabling Linux MGLRU..." | tee -a $RESULT_FILE
+                echo 7 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
             else
+                echo "[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)..." | tee -a $RESULT_FILE
+                echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+            end
+
+            # 启动 eBPF 探针 (如果不是原生 Linux 策略)
+            if not string match -q "linux*" $p
                 echo "Starting Chameleon probe (Preparing Policy: $p)..."
                 
-                # 启动变色龙加载器
+                # 假设脚本在 agent/scripts 目录下，回退两层或一层找到 chameleon.out
+                # 请根据你实际存放 chameleon.out 的路径调整这里
                 sudo ../chameleon.out -c $CGROUP_DIR > chameleon.log 2>&1 &
                 
                 sleep 0.5
                 set CML_PID (pgrep -f "chameleon.out")
                 
                 echo "Waiting for eBPF probe to inject into kernel space..."
-                sleep 10 # 加载探针很快，不需要 10 秒
+                sleep 2 # 加载探针极快，2秒足矣，10秒太浪费生命了
 
                 set PIN_PATH "/sys/fs/bpf/cml_params_map"
 
@@ -107,10 +111,6 @@ for p in $policies
             # ==========================================
             echo "[Starting read/write pressure...]"
             
-            # 使用 sh -c 开启一个全新的子 Shell。
-            # 第一步：把这个子 Shell 的 PID 精确写入已经限额 200M 的 Cgroup 里
-            # 第二步：使用 exec 替换掉这个 Shell，运行我们的 C++ 负载。
-            # 这样不仅保证了进程被死死关在 200M 牢笼里，而且完美触发了 cache_ext 的初始化快照！
             sudo sh -c "echo \$\$ > $CGROUP_DIR/cgroup.procs && exec env /usr/bin/time -v -o /tmp/time_output.txt ./workload_gen.out $TEST_FILE $w $CACHE_MB $FILE_MB > /dev/null"
             
             # Append time metrics to the result file

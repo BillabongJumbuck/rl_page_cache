@@ -5,6 +5,11 @@
 
 char _license[] SEC("license") = "GPL";
 
+// ==========================================
+// 调试开关：设为 1 开启详细日志与计数器，设为 0 关闭
+// ==========================================
+#define CML_DEBUG 0
+
 enum policy_type {
     POLICY_LRU   = 0,
     POLICY_SIEVE = 1,
@@ -47,33 +52,37 @@ struct {
     __type(value, u8); 
 } ghost_map SEC(".maps");
 
-// 调试计数器
+#if CML_DEBUG
+// 调试计数器仅在 DEBUG 模式下分配内存
 static u32 mru_debug_count = 0;
 static u32 init_cnt = 0;
 static u32 add_cnt = 0;
 static u32 acc_cnt = 0;
-static u32 evict_trigger_cnt = 0; // 整个驱逐批次的触发雷达
-static u32 evict_cnt = 0; // 被驱逐页面的雷达
+static u32 evict_trigger_cnt = 0;
+static u32 evict_cnt = 0;
+#endif
 
 s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
+#if CML_DEBUG
     if (__sync_fetch_and_add(&init_cnt, 1) < 5) {
         bpf_printk("[CML-RADAR] INIT called!\n");
     }
+#endif
     main_list = bpf_cache_ext_ds_registry_new_list(memcg);
     if (main_list == 0) return -1;
     return 0;
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
+#if CML_DEBUG
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = (u32)(pid_tgid >> 32);
 
-    // 稍微降低频率，每 100 个页面打一次，带上 PID
     if ((__sync_fetch_and_add(&add_cnt, 1) % 100) == 0) {
         bpf_printk("[CML-ADD] pid:%u folio:%llx\n", pid, (u64)folio);
     }
+#endif
 
-    // 维持原有逻辑
     __u32 param_key = 0;
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     u32 policy = params ? params->active_policy : POLICY_LRU;
@@ -87,9 +96,11 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
+#if CML_DEBUG
     if (__sync_fetch_and_add(&acc_cnt, 1) < 5) {
         bpf_printk("[CML-RADAR] ACCESSED called!\n");
     }
+#endif
 
     __u32 param_key = 0;
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
@@ -99,58 +110,62 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
     if (!score) return; 
 
-    // 【算法基石 2】：热数据复位
     switch (params->active_policy) {
         case POLICY_LRU:
-            bpf_cache_ext_list_move(main_list, folio, true);  // 移到 Tail
+            bpf_cache_ext_list_move(main_list, folio, true);  
             break;
         case POLICY_MRU:
-            bpf_cache_ext_list_move(main_list, folio, false); // 移到 Head
+            bpf_cache_ext_list_move(main_list, folio, false); 
             break;
         case POLICY_SIEVE:
-            *score = 1; 
             break;
         case POLICY_LFU:
-            if (*score < 10) __sync_fetch_and_add(score, 1); 
+            if (*score < 10000) __sync_fetch_and_add(score, 1);
             break;
     }
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
-
     __u64 key = (__u64)folio;
-
     u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
     if (!score) {
-        return; // 静默忽略，保平安
+        return; 
     }
     
-    // 如果有页面被回收（不论是被谁回收），看看能不能抓到
+#if CML_DEBUG
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
     if ((__sync_fetch_and_add(&evict_cnt, 1) % 100) == 0) {
         bpf_printk("[CML-EVICT-NOTIFY] folio:%llx (by pid:%d)\n", (u64)folio, pid);
     }
+#endif
 
     bpf_cache_ext_list_del(folio);
-
     bpf_map_delete_elem(&folio_meta_map, &key);
 }
 
 static s64 lfu_score_cb(struct cache_ext_list_node *a) {
     __u64 key = (__u64)a->folio;
     u32 *score = bpf_map_lookup_elem(&folio_meta_map, &key);
+    
+    // 提取硬件访问位并清理（防止 A-bit 堆积）
     int hw_refs = bpf_folio_check_referenced(a->folio);
     s64 total = hw_refs;
+    
     if (score) {
-        __sync_fetch_and_add(score, hw_refs); 
+        // 加上硬件层面最近抓到的访问
+        if (hw_refs > 0) {
+            __sync_fetch_and_add(score, hw_refs); 
+        }
         total += *score;
+        
+        // 【关键修复：衰减 Aging】
+        // 每次被内核选中放入 32 人采样池时，历史分数减半
+        // 配合 LFU 的特性，保证陈旧的热点数据最终会“凉透”并被驱逐
+        *score >>= 1; 
     }
     return total;
 }
 
-// ==========================================
-// 核心驱逐逻辑
-// ==========================================
 static int evict_lru_cb(int idx, struct cache_ext_list_node *a) {
     if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
     if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio) || folio_test_locked(a->folio)) return CACHE_EXT_CONTINUE_ITER;
@@ -158,7 +173,6 @@ static int evict_lru_cb(int idx, struct cache_ext_list_node *a) {
     return CACHE_EXT_EVICT_NODE;
 }
 
-// 深度调试版 MRU 驱逐
 static int evict_mru_cb(int idx, struct cache_ext_list_node *a) {
     if (!a || !a->folio) return CACHE_EXT_CONTINUE_ITER;
 
@@ -167,7 +181,13 @@ static int evict_mru_cb(int idx, struct cache_ext_list_node *a) {
     bool dirty = folio_test_dirty(a->folio);
     bool writeback = folio_test_writeback(a->folio);
     bool locked = folio_test_locked(a->folio);
+    
+#if CML_DEBUG
     int refs = bpf_folio_check_referenced(a->folio);
+#else
+    // 在非 DEBUG 模式下，为了保持原生驱逐行为的一致性，硬件访问位依然需要被清理/检查
+    bpf_folio_check_referenced(a->folio); 
+#endif
 
     int action = CACHE_EXT_EVICT_NODE;
     int reason = 0; 
@@ -183,13 +203,14 @@ static int evict_mru_cb(int idx, struct cache_ext_list_node *a) {
         action = CACHE_EXT_CONTINUE_ITER;
     }
 
-    // 只打印每次驱逐的前 20 个页面的详细状态
+#if CML_DEBUG
     if (__sync_fetch_and_add(&mru_debug_count, 1) < 20) {
         bpf_printk("[MRU-DBG] idx:%d up:%d lru:%d dir:%d wb:%d lck:%d\n",
                    idx, uptodate, lru, dirty, writeback, locked);
         bpf_printk("[MRU-DBG-2] refs:%d action:%d reason:%d\n",
                    refs, action, reason);
     }
+#endif
 
     return action;
 }
@@ -200,6 +221,7 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     u32 policy = params ? params->active_policy : POLICY_LRU;
 
+#if CML_DEBUG
     if (__sync_fetch_and_add(&evict_trigger_cnt, 1) < 50) {
         bpf_printk("[CML-RADAR] EVICT TRIGGERED! Policy: %d, Req: %d\n", 
                    policy, eviction_ctx->request_nr_folios_to_evict);
@@ -207,6 +229,7 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
 
     // 每次触发驱逐，重置 MRU 的节点级调试计数器，确保能看到最新的前 20 个页面
     mru_debug_count = 0;
+#endif
 
     if (policy == POLICY_LRU) {
         bpf_cache_ext_list_iterate(memcg, main_list, evict_lru_cb, eviction_ctx);
@@ -214,10 +237,11 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
     else if (policy == POLICY_MRU) {
         bpf_cache_ext_list_iterate(memcg, main_list, evict_mru_cb, eviction_ctx);
         
-        // 打印单次驱逐的最终战果
+#if CML_DEBUG
         bpf_printk("[MRU-RESULT] req:%d evicted:%d\n", 
                    eviction_ctx->request_nr_folios_to_evict, 
                    eviction_ctx->nr_folios_to_evict);
+#endif
     }
     else if (policy == POLICY_SIEVE) {
         #pragma unroll
