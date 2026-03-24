@@ -5,8 +5,8 @@
 # ==========================================
 
 # Define test scope
-set workloads wl1 wl2 wl3 wl4 
-set policies lru sieve mru linux_classic linux_mglru 
+set workloads wl5 #wl1 wl2 wl3 wl4 
+set policies lru mru lfu linux_classic linux_mglru 
 set num_runs 3
 
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
@@ -94,14 +94,14 @@ for p in $policies
                     case "lru"
                         sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 0 0 0 0 
                         echo "Chameleon switched to eBPF LRU mode!" | tee -a $RESULT_FILE
-                    case "sieve"
+                    case "sieve" # 注意，已作废
                         sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 1 0 0 0 
                         echo "Chameleon switched to eBPF SIEVE mode!" | tee -a $RESULT_FILE
                     case "mru"
-                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 2 0 0 0 
+                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 1 0 0 0 
                         echo "Chameleon switched to eBPF MRU mode!" | tee -a $RESULT_FILE
                     case "lfu"
-                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 3 0 0 0 
+                        sudo bpftool map update pinned $PIN_PATH key 0 0 0 0 value 2 0 0 0 
                         echo "Chameleon switched to eBPF LFU mode!" | tee -a $RESULT_FILE
                 end
             end

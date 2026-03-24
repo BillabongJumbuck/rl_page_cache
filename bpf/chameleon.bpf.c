@@ -10,11 +10,17 @@ char _license[] SEC("license") = "GPL";
 // ==========================================
 #define CML_DEBUG 0
 
+// ==========================================
+// 特性开关：设为 1 开启 LFU 编译，设为 0 彻底剔除 LFU 开销
+// ==========================================
+#define ENABLE_LFU 0
+
 enum policy_type {
-    POLICY_LRU   = 0,
-    POLICY_SIEVE = 1,
-    POLICY_MRU   = 2,
-    // POLICY_LFU 已经被彻底移除
+    POLICY_LRU = 0,
+    POLICY_MRU = 1,
+#if ENABLE_LFU
+    POLICY_LFU = 2, // 替换了原本的 SIEVE
+#endif
 };
 
 struct rl_params { __u32 active_policy; };
@@ -38,14 +44,22 @@ struct {
 
 static u64 main_list; 
 
-// folio_meta_map 已被完全移除，彻底消除了软件维度的打分和 Map 锁开销！
-
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH); 
     __uint(max_entries, 200000); 
     __type(key, __u64);
     __type(value, u8); 
-} ghost_map SEC(".maps"); // 暂时保留声明，留作后续 RL Regret 通信的占位符
+} ghost_map SEC(".maps"); // 保留声明，作 RL Regret 通信的占位符
+
+#if ENABLE_LFU
+// 专用于 LFU 策略的频次表 (仅在编译宏开启时存在)
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH); 
+    __uint(max_entries, 200000); // 根据实际环境调整，建议与缓存页数一致
+    __type(key, __u64);          // folio 的内核地址
+    __type(value, u8);           // 访问频次 0~255
+} lfu_freq_map SEC(".maps");
+#endif
 
 #if CML_DEBUG
 // 调试计数器仅在 DEBUG 模式下分配内存
@@ -84,8 +98,14 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
 
     if (policy == POLICY_LRU) bpf_cache_ext_list_add_tail(main_list, folio);
     else bpf_cache_ext_list_add(main_list, folio);
-    
-    // 原本 folio_meta_map 的 update 被干掉了，极其流畅
+
+#if ENABLE_LFU
+    if (policy == POLICY_LFU) {
+        u64 addr = (u64)folio;
+        u8 init_freq = 1; // 新页面的初始频次为 1
+        bpf_map_update_elem(&lfu_freq_map, &addr, &init_freq, BPF_ANY);
+    }
+#endif
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
@@ -99,8 +119,6 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     if (!params) return;
 
-    // 原本基于 folio_meta_map 的 lookup 被干掉了，零开销！
-
     switch (params->active_policy) {
         case POLICY_LRU:
             bpf_cache_ext_list_move(main_list, folio, true);  
@@ -108,16 +126,27 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
         case POLICY_MRU:
             bpf_cache_ext_list_move(main_list, folio, false); 
             break;
-        case POLICY_SIEVE:
-            // 极致极简：什么都不用做，底层自带扫描机制处理 A-bit
+#if ENABLE_LFU
+        case POLICY_LFU: {
+            u64 addr = (u64)folio;
+            u8 *freq = bpf_map_lookup_elem(&lfu_freq_map, &addr);
+            if (freq) {
+                // 饱和累加，最高 255
+                if (*freq < 255) (*freq)++;
+            } else {
+                // 容错处理：如果在 Map 中丢失，重新插入
+                u8 val = 1;
+                bpf_map_update_elem(&lfu_freq_map, &addr, &val, BPF_ANY);
+            }
+            // 发生访问后，将其视作较热状态，可以借用 LRU 的移动逻辑避免被过早扫描
+            bpf_cache_ext_list_move(main_list, folio, true); 
             break;
-        // POLICY_LFU 彻底消失了
+        }
+#endif
     }
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
-    // folio_meta_map 的 lookup 和 delete 被移除了
-    
 #if CML_DEBUG
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if ((__sync_fetch_and_add(&evict_cnt, 1) % 100) == 0) {
@@ -125,11 +154,17 @@ void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
     }
 #endif
 
+#if ENABLE_LFU
+    // 无脑清理：只要开启了宏，页面被驱逐时就尝试清理频率表，防止内存泄漏
+    u64 addr = (u64)folio;
+    bpf_map_delete_elem(&lfu_freq_map, &addr);
+#endif
+
     bpf_cache_ext_list_del(folio);
 }
 
 // ==========================================
-// 核心驱逐逻辑 (仅保留最能打的)
+// 核心驱逐逻辑
 // ==========================================
 static int evict_lru_cb(int idx, struct cache_ext_list_node *a) {
     if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
@@ -150,14 +185,12 @@ static int evict_mru_cb(int idx, struct cache_ext_list_node *a) {
 #if CML_DEBUG
     int refs = bpf_folio_check_referenced(a->folio);
 #else
-    // 在非 DEBUG 模式下，为了保持原生驱逐行为的一致性，硬件访问位依然需要被清理/检查
     bpf_folio_check_referenced(a->folio); 
 #endif
 
     int action = CACHE_EXT_EVICT_NODE;
     int reason = 0; 
 
-    // 记录被跳过的具体原因 (优先级从高到低)
     if (locked) reason = 1;
     else if (writeback) reason = 2;
     else if (dirty) reason = 3;
@@ -180,6 +213,35 @@ static int evict_mru_cb(int idx, struct cache_ext_list_node *a) {
     return action;
 }
 
+#if ENABLE_LFU
+static int evict_lfu_cb(int idx, struct cache_ext_list_node *a) {
+    if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
+    if (folio_test_dirty(a->folio) || folio_test_writeback(a->folio) || folio_test_locked(a->folio)) return CACHE_EXT_CONTINUE_ITER;
+    
+    u64 addr = (u64)a->folio;
+    u8 *freq = bpf_map_lookup_elem(&lfu_freq_map, &addr);
+
+    // 如果页面的硬件 Access 位被置起，说明极热，补充分数并保护
+    if (bpf_folio_check_referenced(a->folio) > 0) {
+        if (freq && *freq < 255) (*freq)++;
+        return CACHE_EXT_CONTINUE_ITER;
+    }
+
+    u8 val = freq ? *freq : 0;
+
+    // LFU-Clock 核心逻辑：
+    // 如果频次极低 (<=1)，立刻执行驱逐
+    if (val <= 1) {
+        return CACHE_EXT_EVICT_NODE;
+    } 
+    // 搭车老化机制：频次减半，保留在内存中给它第二次机会
+    else {
+        *freq = val >> 1;
+        return CACHE_EXT_CONTINUE_ITER;
+    }
+}
+#endif
+
 void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *eviction_ctx, struct mem_cgroup *memcg) {
     __u32 param_key = 0;
 
@@ -191,8 +253,6 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
         bpf_printk("[CML-RADAR] EVICT TRIGGERED! Policy: %d, Req: %d\n", 
                    policy, eviction_ctx->request_nr_folios_to_evict);
     }
-
-    // 每次触发驱逐，重置 MRU 的节点级调试计数器，确保能看到最新的前 20 个页面
     mru_debug_count = 0;
 #endif
 
@@ -208,16 +268,11 @@ void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *evict
                    eviction_ctx->nr_folios_to_evict);
 #endif
     }
-    else if (policy == POLICY_SIEVE) {
-        #pragma unroll
-        for (int i = 0; i < 32; i++) {
-            if (eviction_ctx->nr_folios_to_evict >= eviction_ctx->request_nr_folios_to_evict) break;
-            struct folio *victim = bpf_cache_ext_sieve_get_victim(memcg, main_list);
-            if (!victim) break; 
-            eviction_ctx->folios_to_evict[i] = victim;
-            eviction_ctx->nr_folios_to_evict = i + 1;
-        }
+#if ENABLE_LFU
+    else if (policy == POLICY_LFU) {
+        bpf_cache_ext_list_iterate(memcg, main_list, evict_lfu_cb, eviction_ctx);
     }
+#endif
 }
 
 SEC(".struct_ops.link")

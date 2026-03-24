@@ -135,6 +135,38 @@ void workload_shifting(int fd, int cache_pages, int total_file_pages) {
     delete[] buf;
 }
 
+// =========================================================================
+// Workload 5: B-Tree 索引穿透 (B-Tree Index Simulation)
+// 预期获胜者：LFU
+// 模式：模拟数据库查询。每次查询必经高频的“索引页”，然后落入海量低频的“数据页”。
+// =========================================================================
+void workload_btree(int fd, int cache_pages, int total_file_pages) {
+    std::cout << ">>> 执行 Workload 5: B-Tree 索引穿透 (预期 LFU 胜出)" << std::endl;
+    std::mt19937 gen(888);
+    char* buf = new char[PAGE_SIZE];
+
+    // 假设文件的前 1000 个 page 是核心索引结构
+    int index_pages = std::min(1000, total_file_pages);
+    std::uniform_int_distribution<> index_dist(0, index_pages - 1);
+    
+    // 其余的全是底层海量数据页
+    std::uniform_int_distribution<> leaf_dist(index_pages, total_file_pages - 1);
+
+    // 模拟 300 万次数据库穿透查询
+    for (int i = 0; i < 3000000; i++) {
+        // 1. 查索引：每次查询都需要遍历 3 个高频索引节点
+        for (int j = 0; j < 3; j++) {
+            pread(fd, buf, PAGE_SIZE, (off_t)index_dist(gen) * PAGE_SIZE);
+        }
+        // 2. 拿数据：最终读取 1 个大概率极冷的底层数据页
+        pread(fd, buf, PAGE_SIZE, (off_t)leaf_dist(gen) * PAGE_SIZE);
+        
+        // 限速，给 BPF 一点处理时间
+        if (i % 1024 == 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    delete[] buf;
+}
+
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "Usage: " << argv[0] << " <file_path> <workload: wl1|wl2|wl3|wl4> <cache_size_mb> <file_size_mb>" << std::endl;
@@ -158,6 +190,7 @@ int main(int argc, char** argv) {
     else if (mode == "wl2") workload_scan_thrash(fd, cache_pages, total_pages);
     else if (mode == "wl3") workload_zipfian(fd, cache_pages, total_pages);
     else if (mode == "wl4") workload_shifting(fd, cache_pages, total_pages);
+    else if (mode == "wl5") workload_btree(fd, cache_pages, total_pages);
     else std::cerr << "Unknown workload. Please use wl1, wl2, wl3, or wl4." << std::endl;
 
     close(fd);
