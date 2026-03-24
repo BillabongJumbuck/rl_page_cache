@@ -1,6 +1,7 @@
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include <bpf/bpf_core_read.h>
 #include "cache_ext_lib.bpf.h"
 
 char _license[] SEC("license") = "GPL";
@@ -11,15 +12,19 @@ char _license[] SEC("license") = "GPL";
 #define CML_DEBUG 0
 
 // ==========================================
-// 特性开关：设为 1 开启 LFU 编译，设为 0 彻底剔除 LFU 开销
+// 特性开关
 // ==========================================
 #define ENABLE_LFU 0
+#define ENABLE_PATTERN_REC 1 // 开启基于模式识别的宏观特征提取 (Pattern Recognition)
+
+// 模式识别的时间窗口大小：每 10000 次访存提取一次特征向量
+#define WINDOW_SIZE 10000
 
 enum policy_type {
     POLICY_LRU = 0,
     POLICY_MRU = 1,
 #if ENABLE_LFU
-    POLICY_LFU = 2, // 替换了原本的 SIEVE
+    POLICY_LFU = 2,
 #endif
 };
 
@@ -44,31 +49,159 @@ struct {
 
 static u64 main_list; 
 
+#if ENABLE_PATTERN_REC
+// ==========================================
+// 数据面输出：向 Python/C++ Agent 汇报的宏观特征向量
+// ==========================================
+struct feature_event {
+    u32 window_id;
+    u32 seq_ratio_10000;    // 连续步长比例 (放大 10000 倍的定点数)
+    u32 avg_irr;            // 平均重访距离
+    u32 unique_ratio_10000; // 独有页面率 (放大 10000 倍的定点数)
+    
+    // [新增] 用于 GMM 聚类的 IRR 直方图分布特征 (放大 10000 倍的比例)
+    u32 irr_0_1k_ratio;     
+    u32 irr_1k_10k_ratio;   
+    u32 irr_10k_plus_ratio; 
+};
+
 struct {
-    __uint(type, BPF_MAP_TYPE_LRU_HASH); 
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024); 
+} feature_events SEC(".maps");
+
+// 内部状态跟踪：用于计算重访距离和独有页面
+struct page_track_info {
+    u64 last_access_tick;
+    u32 window_id; // 记录页面最后一次被访问是在哪个窗口期
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_PERCPU_HASH); 
     __uint(max_entries, 200000); 
-    __type(key, __u64);
-    __type(value, u8); 
-} ghost_map SEC(".maps"); // 保留声明，作 RL Regret 通信的占位符
+    __type(key, __u64); 
+    __type(value, struct page_track_info); 
+} page_tracking_map SEC(".maps");
 
-#if ENABLE_LFU
-// 专用于 LFU 策略的频次表 (仅在编译宏开启时存在)
+// ==========================================
+// 🚀 核心优化：Per-CPU 状态统计，彻底消灭全局原子锁！
+// ==========================================
+struct cpu_stat {
+    u64 tick;
+    u64 seq_access_count;
+    u64 total_irr;
+    u64 irr_event_count;
+    u64 unique_pages_count;
+    u64 irr_0_1k_count;
+    u64 irr_1k_10k_count;
+    u64 irr_10k_plus_count;
+    u64 last_mapping;
+    u64 last_index;
+    u32 current_window_id;
+};
+
+// 为每个 CPU 核心独立分配一份上述结构体
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH); 
-    __uint(max_entries, 200000); // 根据实际环境调整，建议与缓存页数一致
-    __type(key, __u64);          // folio 的内核地址
-    __type(value, u8);           // 访问频次 0~255
-} lfu_freq_map SEC(".maps");
-#endif
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, struct cpu_stat);
+} cpu_stats_map SEC(".maps");
 
-#if CML_DEBUG
-// 调试计数器仅在 DEBUG 模式下分配内存
-static u32 mru_debug_count = 0;
-static u32 init_cnt = 0;
-static u32 add_cnt = 0;
-static u32 acc_cnt = 0;
-static u32 evict_trigger_cnt = 0;
-static u32 evict_cnt = 0;
+
+// 设定采样掩码为 0x3F (即 64)，实现 1/64 的采样率
+#define SAMPLING_MASK 0x3F 
+
+// O(1) 核心特征提取辅助函数 (大数定律采样版)
+static inline void record_access(u64 mapping, u64 index) {
+    u32 key = 0;
+    struct cpu_stat *st = bpf_map_lookup_elem(&cpu_stats_map, &key);
+    if (!st) return;
+
+    st->tick++;
+    
+    // ==========================================
+    // ⚡ Fast Path (极速路径)：所有请求都会执行，开销 < 5纳秒
+    // ==========================================
+    
+    // 1. 统计连续步长 (仅需两次寄存器比对)
+    if (mapping == st->last_mapping && index == st->last_index + 1) {
+        st->seq_access_count++;
+    }
+    st->last_mapping = mapping;
+    st->last_index = index;
+
+    // 2. 窗口结算：依然严格按照物理真实访存次数 (WINDOW_SIZE) 触发
+    if (st->tick > 0 && (st->tick % WINDOW_SIZE) == 0) {
+        struct feature_event *event = bpf_ringbuf_reserve(&feature_events, sizeof(*event), 0);
+        if (event) {
+            u64 events = st->irr_event_count; 
+            u64 total = st->total_irr;
+            
+            event->window_id = st->current_window_id;
+            event->seq_ratio_10000 = (st->seq_access_count * 10000) / WINDOW_SIZE;
+            // 注意：因为采样率是 1/64，真实的 unique 页面需要等比例放大，但为了喂给 GMM，保持采样尺度即可
+            event->unique_ratio_10000 = (st->unique_pages_count * 10000) / (WINDOW_SIZE >> 6);
+            
+            event->avg_irr = events > 0 ? (total / events) : 0;
+            event->irr_0_1k_ratio = events > 0 ? (st->irr_0_1k_count * 10000) / events : 0;
+            event->irr_1k_10k_ratio = events > 0 ? (st->irr_1k_10k_count * 10000) / events : 0;
+            event->irr_10k_plus_ratio = events > 0 ? (st->irr_10k_plus_count * 10000) / events : 0;
+
+            bpf_ringbuf_submit(event, 0);
+        }
+        
+        st->current_window_id++;
+        st->seq_access_count = 0;
+        st->total_irr = 0;
+        st->irr_event_count = 0;
+        st->unique_pages_count = 0;
+        st->irr_0_1k_count = 0;
+        st->irr_1k_10k_count = 0;
+        st->irr_10k_plus_count = 0;
+    }
+
+    // 3. 🛡️ 采样拦截器：98.4% 的请求在这里被无情丢弃！
+    if ((st->tick & SAMPLING_MASK) != 0) {
+        return; 
+    }
+
+    // ==========================================
+    // 🐢 Slow Path (慢速路径)：只有 1/64 的样本进入哈希表
+    // ==========================================
+    u64 page_id = mapping ^ (index << 12);
+    u32 win_id = st->current_window_id;
+    struct page_track_info *info = bpf_map_lookup_elem(&page_tracking_map, &page_id);
+    
+    if (info) {
+        // 缩放真实的时间跨度 (真实物理 IRR = 采样 IRR * 64)
+        u64 irr = (st->tick - info->last_access_tick);
+        st->total_irr += irr;
+        st->irr_event_count++;
+
+        if (irr < 1000) {
+            st->irr_0_1k_count++;
+        } else if (irr < 10000) {
+            st->irr_1k_10k_count++;
+        } else {
+            st->irr_10k_plus_count++;
+        }
+
+        if (info->window_id != win_id) {
+            st->unique_pages_count++;
+        }
+        
+        info->last_access_tick = st->tick;
+        info->window_id = win_id;
+    } else {
+        st->unique_pages_count++;
+        struct page_track_info new_info = {
+            .last_access_tick = st->tick,
+            .window_id = win_id
+        };
+        bpf_map_update_elem(&page_tracking_map, &page_id, &new_info, BPF_ANY);
+    }
+}
 #endif
 
 s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
@@ -79,6 +212,13 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
 #endif
     main_list = bpf_cache_ext_ds_registry_new_list(memcg);
     if (main_list == 0) return -1;
+    
+    // 初始化时给一个默认的 Policy
+    __u32 key = 0;
+    struct rl_params init_params = {};
+    init_params.active_policy = POLICY_LRU;
+    bpf_map_update_elem(&cml_params_map, &key, &init_params, BPF_ANY);
+
     return 0;
 }
 
@@ -96,13 +236,21 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     u32 policy = params ? params->active_policy : POLICY_LRU;
 
+#if ENABLE_PATTERN_REC
+    // 获取绝对唯一的逻辑页 ID，防止跨文件哈希碰撞
+    struct address_space *mapping = BPF_CORE_READ(folio, mapping);
+    u64 index = (u64)BPF_CORE_READ(folio, index);
+    record_access((u64)mapping, index);
+#endif
+
+    // 无脑执行当前下发的 policy
     if (policy == POLICY_LRU) bpf_cache_ext_list_add_tail(main_list, folio);
     else bpf_cache_ext_list_add(main_list, folio);
 
 #if ENABLE_LFU
     if (policy == POLICY_LFU) {
         u64 addr = (u64)folio;
-        u8 init_freq = 1; // 新页面的初始频次为 1
+        u8 init_freq = 1; 
         bpf_map_update_elem(&lfu_freq_map, &addr, &init_freq, BPF_ANY);
     }
 #endif
@@ -119,6 +267,13 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
     if (!params) return;
 
+#if ENABLE_PATTERN_REC
+    // [修改] 获取绝对唯一的逻辑页 ID，防止跨文件哈希碰撞
+    struct address_space *mapping = BPF_CORE_READ(folio, mapping);
+    u64 index = (u64)BPF_CORE_READ(folio, index);
+    record_access((u64)mapping, index);
+#endif
+
     switch (params->active_policy) {
         case POLICY_LRU:
             bpf_cache_ext_list_move(main_list, folio, true);  
@@ -131,14 +286,11 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
             u64 addr = (u64)folio;
             u8 *freq = bpf_map_lookup_elem(&lfu_freq_map, &addr);
             if (freq) {
-                // 饱和累加，最高 255
                 if (*freq < 255) (*freq)++;
             } else {
-                // 容错处理：如果在 Map 中丢失，重新插入
                 u8 val = 1;
                 bpf_map_update_elem(&lfu_freq_map, &addr, &val, BPF_ANY);
             }
-            // 发生访问后，将其视作较热状态，可以借用 LRU 的移动逻辑避免被过早扫描
             bpf_cache_ext_list_move(main_list, folio, true); 
             break;
         }
@@ -154,8 +306,9 @@ void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
     }
 #endif
 
+    // 不再记录后悔事件，因为模式识别是从全局时空视角判断的，而非微观试错。
+
 #if ENABLE_LFU
-    // 无脑清理：只要开启了宏，页面被驱逐时就尝试清理频率表，防止内存泄漏
     u64 addr = (u64)folio;
     bpf_map_delete_elem(&lfu_freq_map, &addr);
 #endif
@@ -164,7 +317,7 @@ void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
 }
 
 // ==========================================
-// 核心驱逐逻辑
+// 核心驱逐逻辑 
 // ==========================================
 static int evict_lru_cb(int idx, struct cache_ext_list_node *a) {
     if (!folio_test_uptodate(a->folio) || !folio_test_lru(a->folio)) return CACHE_EXT_CONTINUE_ITER;
@@ -221,7 +374,6 @@ static int evict_lfu_cb(int idx, struct cache_ext_list_node *a) {
     u64 addr = (u64)a->folio;
     u8 *freq = bpf_map_lookup_elem(&lfu_freq_map, &addr);
 
-    // 如果页面的硬件 Access 位被置起，说明极热，补充分数并保护
     if (bpf_folio_check_referenced(a->folio) > 0) {
         if (freq && *freq < 255) (*freq)++;
         return CACHE_EXT_CONTINUE_ITER;
@@ -229,12 +381,9 @@ static int evict_lfu_cb(int idx, struct cache_ext_list_node *a) {
 
     u8 val = freq ? *freq : 0;
 
-    // LFU-Clock 核心逻辑：
-    // 如果频次极低 (<=1)，立刻执行驱逐
     if (val <= 1) {
         return CACHE_EXT_EVICT_NODE;
     } 
-    // 搭车老化机制：频次减半，保留在内存中给它第二次机会
     else {
         *freq = val >> 1;
         return CACHE_EXT_CONTINUE_ITER;

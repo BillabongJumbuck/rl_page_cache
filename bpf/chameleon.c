@@ -6,7 +6,11 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/resource.h>
+#include <stdint.h>
+typedef uint64_t u64;
+typedef uint32_t u32;
 #include "chameleon.skel.h"
+
 
 struct cmdline_args { char *cgroup_path; };
 static struct argp_option options[] = { 
@@ -23,9 +27,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static volatile bool exiting = false;
 static void sig_handler(int sig) { exiting = true; }
 
-// 定义全局的 Pin 挂载路径
-const char *PIN_PARAMS_PATH = "/sys/fs/bpf/cml_params_map";
-const char *PIN_STATS_PATH  = "/sys/fs/bpf/cml_stats_map";
+// ==============================================================
+// 🌟 核心修改 1：重命名挂载路径，适配特征提取架构
+// ==============================================================
+const char *PIN_PARAMS_PATH  = "/sys/fs/bpf/cml_params_map";
+const char *PIN_STATS_PATH   = "/sys/fs/bpf/cml_stats_map";
+const char *PIN_FEATURE_PATH = "/sys/fs/bpf/cml_feature_events"; // 改为 Feature RingBuffer 路径
 
 int main(int argc, char **argv) {
     struct rlimit rlim = {
@@ -57,22 +64,17 @@ int main(int argc, char **argv) {
     if (!skel) goto cleanup;
 
     // ==============================================================
-    // 🌟 【核心修改】：将 Map Pin 到文件系统，确保外部脚本 100% 能找到
+    // 🌟 核心修改 2：把 feature_events Pin 到文件系统
     // ==============================================================
-    // 先尝试解绑可能因为上次异常退出而残留的 Map
     bpf_map__unpin(skel->maps.cml_params_map, PIN_PARAMS_PATH);
     bpf_map__unpin(skel->maps.cml_stats_map, PIN_STATS_PATH);
+    bpf_map__unpin(skel->maps.feature_events, PIN_FEATURE_PATH); 
 
-    // 强行挂载到 /sys/fs/bpf/ 目录下
-    if (bpf_map__pin(skel->maps.cml_params_map, PIN_PARAMS_PATH)) {
-        fprintf(stderr, "❌ Failed to pin cml_params_map\n");
-        goto cleanup;
-    }
-    if (bpf_map__pin(skel->maps.cml_stats_map, PIN_STATS_PATH)) {
-        fprintf(stderr, "❌ Failed to pin cml_stats_map\n");
-        goto cleanup;
-    }
-    printf("✅ Maps successfully pinned to /sys/fs/bpf/\n");
+    if (bpf_map__pin(skel->maps.cml_params_map, PIN_PARAMS_PATH)) goto cleanup;
+    if (bpf_map__pin(skel->maps.cml_stats_map, PIN_STATS_PATH)) goto cleanup;
+    if (bpf_map__pin(skel->maps.feature_events, PIN_FEATURE_PATH)) goto cleanup; 
+
+    printf("✅ Maps & Feature RingBuffer successfully pinned to /sys/fs/bpf/\n");
 
     // 默认加载策略 0 (POLICY_LRU)
     __u32 map_key = 0;
@@ -82,21 +84,25 @@ int main(int argc, char **argv) {
     link = bpf_map__attach_cache_ext_ops(skel->maps.chameleon_ops, cgroup_fd);
     if (!link) goto cleanup;
 
-    printf("🚀 Chameleon (4-Policy Router) successfully attached to cgroup!\n");
+    printf("🚀 Chameleon Data Plane successfully attached to cgroup!\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     
+    // 数据面只负责站岗，不处理任何用户态逻辑
     while (!exiting) { pause(); }
 
 cleanup:
-    // 退出时打扫战场，拔掉 Pin 的文件
     if (skel) {
         bpf_map__unpin(skel->maps.cml_params_map, PIN_PARAMS_PATH);
         bpf_map__unpin(skel->maps.cml_stats_map, PIN_STATS_PATH);
+        // ==============================================================
+        // 🌟 核心修改 3：退出时清理 feature_events
+        // ==============================================================
+        bpf_map__unpin(skel->maps.feature_events, PIN_FEATURE_PATH);
     }
     if (cgroup_fd >= 0) close(cgroup_fd);
     bpf_link__destroy(link);
     chameleon_bpf__destroy(skel);
-    printf("\n🛑 Chameleon stopped and cleaned up.\n");
+    printf("\n🛑 Chameleon Data Plane stopped and cleaned up.\n");
     return 0;
 }
