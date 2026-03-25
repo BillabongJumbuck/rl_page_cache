@@ -1,38 +1,9 @@
 === Chameleon Automation Benchmark Started ===
-Timestamp: Tue Mar 24 02:49:57 AM UTC 2026
+Timestamp: Wed Mar 25 03:38:17 AM UTC 2026
 [Init] Generating 5GB test file...
 
 ========================================================
 ▶▶▶ [Progress] Executing: Workload [wl5] | Policy [lru] | Run: 1/3
-========================================================
-[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
-Chameleon switched to eBPF LRU mode!
-	Command being timed: "./workload_gen.out /tmp/test.dat wl5 200 5000"
-	User time (seconds): 4.57
-	System time (seconds): 83.73
-	Percent of CPU this job got: 28%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 5:04.96
-	Average shared text size (kbytes): 0
-	Average unshared data size (kbytes): 0
-	Average stack size (kbytes): 0
-	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 3584
-	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 61
-	Minor (reclaiming a frame) page faults: 198
-	Voluntary context switches: 2894809
-	Involuntary context switches: 176
-	Swaps: 0
-	File system inputs: 23138680
-	File system outputs: 0
-	Socket messages sent: 0
-	Socket messages received: 0
-	Signals delivered: 0
-	Page size (bytes): 4096
-	Exit status: 0
-
-========================================================
-▶▶▶ [Progress] Executing: Workload [wl5] | Policy [lru] | Run: 2/3
 ========================================================
 [System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
 Chameleon switched to eBPF LRU mode!

@@ -89,7 +89,9 @@ int main(int argc, char **argv) {
     signal(SIGTERM, sig_handler);
     
     // 数据面只负责站岗，不处理任何用户态逻辑
-    while (!exiting) { pause(); }
+    while (!exiting) {
+        sleep(1); 
+    }
 
 cleanup:
     if (skel) {

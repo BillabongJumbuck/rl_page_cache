@@ -14,7 +14,7 @@ char _license[] SEC("license") = "GPL";
 // ==========================================
 // 特性开关
 // ==========================================
-#define ENABLE_LFU 0
+#define ENABLE_LFU 1
 #define ENABLE_PATTERN_REC 1 // 开启基于模式识别的宏观特征提取 (Pattern Recognition)
 
 // 模式识别的时间窗口大小：每 10000 次访存提取一次特征向量
@@ -48,6 +48,15 @@ struct {
 } cml_stats_map SEC(".maps");
 
 static u64 main_list; 
+
+#if ENABLE_LFU
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH); // 👈 核心优化：自带容量自净能力的哈希表
+    __uint(max_entries, 200000); 
+    __type(key, __u64);          
+    __type(value, u8);           
+} lfu_freq_map SEC(".maps");
+#endif
 
 #if ENABLE_PATTERN_REC
 // ==========================================
@@ -124,9 +133,14 @@ static inline void record_access(u64 mapping, u64 index) {
     // ⚡ Fast Path (极速路径)：所有请求都会执行，开销 < 5纳秒
     // ==========================================
     
-    // 1. 统计连续步长 (仅需两次寄存器比对)
-    if (mapping == st->last_mapping && index == st->last_index + 1) {
-        st->seq_access_count++;
+    // 1. 统计连续步长 (兼容 Large Folio 和内核预读批处理)
+    if (mapping == st->last_mapping) {
+        u64 diff = index - st->last_index;
+        // 允许的跳跃范围: 正向跳跃，且步长在 1 到 512 页 (即 2MB) 以内
+        // 这完美覆盖了普通页和所有常见的大页 (Large Folio) 分配
+        if (diff > 0 && diff <= 512) {
+            st->seq_access_count++;
+        }
     }
     st->last_mapping = mapping;
     st->last_index = index;
@@ -312,8 +326,8 @@ void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
     u64 addr = (u64)folio;
     bpf_map_delete_elem(&lfu_freq_map, &addr);
 #endif
-
-    bpf_cache_ext_list_del(folio);
+    // Warning!!!
+    // bpf_cache_ext_list_del(folio);
 }
 
 // ==========================================
