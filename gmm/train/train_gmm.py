@@ -10,7 +10,7 @@ import seaborn as sns
 
 # 1. 加载数据
 print("📥 Loading data from memory_features.csv...")
-df = pd.read_csv('memory_features.csv')
+df = pd.read_csv('../data/memory_features.csv')
 
 # 丢弃非特征列 (timestamp, window_id)
 # 实际特征: seq_ratio, avg_irr, unique_ratio, irr_0_1k, irr_1k_10k, irr_10k_plus
@@ -26,11 +26,11 @@ scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
 # 保存 Scaler，在线推理 Agent 必须用完全相同的参数进行缩放
-joblib.dump(scaler, 'scaler.pkl')
+joblib.dump(scaler, '../model/scaler.pkl')
 
 # 3. 训练高斯混合模型 (GMM)
 # 我们已知靶场有 5 个 phase，所以 n_components 设为 5
-n_clusters = 5
+n_clusters = 4
 print(f"🧠 Training GMM with {n_clusters} clusters (covariance_type='full')...")
 gmm = GaussianMixture(n_components=n_clusters, covariance_type='full', random_state=42, max_iter=200)
 gmm.fit(X_scaled)
@@ -40,7 +40,7 @@ labels = gmm.predict(X_scaled)
 df['cluster'] = labels
 
 # 4. 保存模型供在线 Agent 使用
-joblib.dump(gmm, 'gmm_model.pkl')
+joblib.dump(gmm, '../model/gmm_model.pkl')
 print("💾 Model saved to 'gmm_model.pkl' and 'scaler.pkl'.")
 
 # 5. 分析簇的物理含义 (打印每个簇的特征均值)

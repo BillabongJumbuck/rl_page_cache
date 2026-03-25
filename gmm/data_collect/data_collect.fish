@@ -1,5 +1,6 @@
 #!/usr/bin/env fish
 
+set ROOT_DIR "/home/messidor/rl_page_cache/gmm"
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
 set CML_BIN "/home/messidor/rl_page_cache/bpf/chameleon.out"
 set COLLECTOR_BIN "./data_collector.out"
@@ -32,21 +33,21 @@ echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
 # 4. 启动 eBPF 探针
 echo "Starting Chameleon probe..."
 # 🌟 关键修复：加入 & 放入后台，并安全记录 PID
-sudo $CML_BIN -c $CGROUP_DIR > chameleon.log 2>&1 &
+sudo $CML_BIN -c $CGROUP_DIR > $ROOT_DIR/log/chameleon.log 2>&1 &
 set CML_PID $last_pid
 sleep 2
 
 # 5. 启动FIO负载，加入cgroup
 echo "Starting FIO workload..."
 # 🌟 关键修复：原生的 cgroup v2 挂载方式，避免 cgexec 兼容性问题
-./fio_loop.fish > fio.log 2>&1 &
+./fio_loop.fish > $ROOT_DIR/log/fio.log 2>&1 &
 set FIO_PID $last_pid
 echo $FIO_PID | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null
 
 # 6. 启动collector
 echo "Starting data collector..."
 # 🌟 关键修复：移除未实现的命令行参数
-sudo $COLLECTOR_BIN > collector.log 2>&1 &
+sudo $COLLECTOR_BIN > $ROOT_DIR/log/collector.log 2>&1 &
 set COLLECTOR_PID $last_pid
 
 echo "✅ Data collection started. Press Ctrl+C to stop."
