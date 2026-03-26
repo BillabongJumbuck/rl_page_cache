@@ -17,7 +17,7 @@ set RECORD_COUNT 5000000
 set OP_COUNT 300000
 
 # 测试矩阵设定
-set strategies  "ai_agent"  "standard_lru" "mglru"
+set strategies  "ai_agent" "standard_lru" "mglru"
 set workloads a b c d e f
 set nr_runs 3
 
@@ -25,12 +25,26 @@ set nr_runs 3
 # 0. 绝对防御的清理钩子
 # ==========================================
 function cleanup_bpf_agent
+    echo "[Cleanup] 🔪 正在执行深度清理..."
     sudo pkill -9 -f "ycsb" 2>/dev/null
     sudo pkill -SIGINT -f "cml_agent.out" 2>/dev/null
     sudo pkill -SIGINT -f "chameleon.out" 2>/dev/null
-    sleep 1
+    sleep 2
     sudo pkill -9 -f "cml_agent.out" 2>/dev/null
     sudo pkill -9 -f "chameleon.out" 2>/dev/null
+    
+    # 强制将 Cgroup 内可能残留的进程（如内核后台线程）移回根 Cgroup
+    if test -f $CGROUP_DIR/cgroup.procs
+        for pid in (cat $CGROUP_DIR/cgroup.procs 2>/dev/null)
+            echo $pid | sudo tee /sys/fs/cgroup/cgroup.procs > /dev/null 2>&1
+        end
+    end
+    
+    # 确保旧的 Cgroup 彻底灰飞烟灭
+    if test -d $CGROUP_DIR
+        sudo rmdir $CGROUP_DIR 2>/dev/null
+        sleep 1
+    end
 end
 
 function handle_exit --on-signal SIGINT --on-signal SIGTERM
@@ -94,7 +108,7 @@ for strategy in $strategies
         
     else if test "$strategy" = "mglru"
         echo "[Config] 切换至 Linux 现代 MGLRU (Multi-Gen LRU)..."
-        echo 3 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+        echo 7 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
         
     else if test "$strategy" = "ai_agent"
         echo "[Config] 切换至 🤖 AI Agent 动态控制态..."
@@ -117,7 +131,7 @@ for strategy in $strategies
             
             sync
             echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
-            sleep 1
+            sleep 10
             
             # 🌟 修复：不再使用 {}，防止 Fish shell 产生诡异文件名
             set CURRENT_LOG "$LOG_DIR/ycsb_"$strategy"_"$wl"_run"$run".log"
