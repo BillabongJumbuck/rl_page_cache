@@ -1,6 +1,0 @@
-checkpoints
-core
-eval
-logs
-scripts
-workloads

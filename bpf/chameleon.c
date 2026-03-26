@@ -68,11 +68,15 @@ int main(int argc, char **argv) {
     // ==============================================================
     bpf_map__unpin(skel->maps.cml_params_map, PIN_PARAMS_PATH);
     bpf_map__unpin(skel->maps.cml_stats_map, PIN_STATS_PATH);
+#if DATA_COLLECT
     bpf_map__unpin(skel->maps.feature_events, PIN_FEATURE_PATH); 
+#endif
 
     if (bpf_map__pin(skel->maps.cml_params_map, PIN_PARAMS_PATH)) goto cleanup;
     if (bpf_map__pin(skel->maps.cml_stats_map, PIN_STATS_PATH)) goto cleanup;
+#if DATA_COLLECT
     if (bpf_map__pin(skel->maps.feature_events, PIN_FEATURE_PATH)) goto cleanup; 
+#endif
 
     printf("✅ Maps & Feature RingBuffer successfully pinned to /sys/fs/bpf/\n");
 
@@ -100,7 +104,9 @@ cleanup:
         // ==============================================================
         // 🌟 核心修改 3：退出时清理 feature_events
         // ==============================================================
+#if DATA_COLLECT
         bpf_map__unpin(skel->maps.feature_events, PIN_FEATURE_PATH);
+#endif
     }
     if (cgroup_fd >= 0) close(cgroup_fd);
     bpf_link__destroy(link);

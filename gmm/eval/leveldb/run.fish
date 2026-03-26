@@ -1,0 +1,138 @@
+#!/usr/bin/env fish
+# eval_workloads_full.fish
+
+set ROOT_DIR "/home/messidor/rl_page_cache"
+set GMM_DIR "$ROOT_DIR/gmm"
+set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
+set CML_BIN "$ROOT_DIR/bpf/chameleon.out"
+set AGENT_BIN "$GMM_DIR/deploy/cml_agent.out"
+set YCSB_BIN "/home/messidor/YCSB-cpp/ycsb"
+
+set DB_PATH "/tmp/leveldb_ycsb"
+set GOLDEN_PATH "/home/messidor/db_data"  # 👈 你的母体路径
+set LOG_DIR "$GMM_DIR/log/ycsb_eval"
+mkdir -p $LOG_DIR
+
+set RECORD_COUNT 5000000
+set OP_COUNT 300000
+
+# 测试矩阵设定
+set strategies   "standard_lru" "mglru" "ai_agent"
+set workloads e
+set nr_runs 3
+
+# ==========================================
+# 0. 绝对防御的清理钩子
+# ==========================================
+function cleanup_bpf_agent
+    sudo pkill -9 -f "ycsb" 2>/dev/null
+    sudo pkill -SIGINT -f "cml_agent.out" 2>/dev/null
+    sudo pkill -SIGINT -f "chameleon.out" 2>/dev/null
+    sleep 1
+    sudo pkill -9 -f "cml_agent.out" 2>/dev/null
+    sudo pkill -9 -f "chameleon.out" 2>/dev/null
+end
+
+function handle_exit --on-signal SIGINT --on-signal SIGTERM
+    if set -q _CLEANUP_CALLED
+        return
+    end
+    set -g _CLEANUP_CALLED 1
+    echo -e "\n\n[🛡️ Cleanup] 收到中断信号！强制终止..."
+    cleanup_bpf_agent
+    if test -d $CGROUP_DIR
+        sudo rmdir $CGROUP_DIR 2>/dev/null
+    end
+    exit 0
+end
+
+# ==========================================
+# 1. 检查母体是否存在
+# ==========================================
+if not test -d $GOLDEN_PATH
+    echo "❌ 致命错误：找不到数据母体 $GOLDEN_PATH！请先使用 rsync 备份一份 Golden Copy。"
+    exit 1
+end
+
+# ==========================================
+# 2. 部署全局 Cgroup 牢笼配置
+# ==========================================
+sudo -v
+cleanup_bpf_agent
+
+if test -d $CGROUP_DIR
+    sudo rmdir $CGROUP_DIR 2>/dev/null
+    sleep 1
+end
+sudo mkdir -p $CGROUP_DIR
+
+echo "[System] 🧱 部署 800MB 内存牢笼..."
+echo "1024M" | sudo tee $CGROUP_DIR/memory.high > /dev/null
+echo "800M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
+echo 0 | sudo tee $CGROUP_DIR/memory.swap.max > /dev/null 2>/dev/null
+
+# ==========================================
+# 3. 核心大循环：策略 x 负载 x 运行次数
+# ==========================================
+
+for strategy in $strategies
+    echo "\n\n======================================================="
+    echo " 👑 当前比拼策略: [$strategy] "
+    echo "======================================================="
+    
+    cleanup_bpf_agent
+    
+    # 🌟 每次切换策略时，恢复干净的数据库物理环境
+    echo "[Data Restore] 🔄 正在从 Golden Copy 极速克隆数据库状态 (耗时仅需几秒)..."
+    rsync -a --delete $GOLDEN_PATH/ $DB_PATH/
+    sync
+    echo "  └─ ✅ 克隆完成，确保本轮测试物理环境绝对公平！"
+    
+    if test "$strategy" = "standard_lru"
+        echo "[Config] 切换至 Linux 标准双链表 LRU..."
+        echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+        
+    else if test "$strategy" = "mglru"
+        echo "[Config] 切换至 Linux 现代 MGLRU (Multi-Gen LRU)..."
+        echo 3 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+        
+    else if test "$strategy" = "ai_agent"
+        echo "[Config] 切换至 🤖 AI Agent 动态控制态..."
+        echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+        
+        echo "  └─ 🚀 启动变色龙内核探针..."
+        sudo $CML_BIN -c $CGROUP_DIR < /dev/null > $LOG_DIR/chameleon_$strategy.log 2>&1 &
+        sleep 2 
+        
+        echo "  └─ 🧠 启动纯血 C++ AI 智能体..."
+        sudo $AGENT_BIN < /dev/null > $LOG_DIR/ai_agent_$strategy.log 2>&1 &
+        sleep 1
+    end
+
+    for wl in $workloads
+        # 🌟 新增：同一负载跑 N 次，取均值降低随机误差
+        for run in (seq 1 $nr_runs)
+            echo "-------------------------------------------------------"
+            echo "🔥 [$strategy] 正在执行 Workload $wl (第 $run/$nr_runs 次) ..."
+            
+            sync
+            echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
+            sleep 1
+            
+            # 🌟 修复：不再使用 {}，防止 Fish shell 产生诡异文件名
+            set CURRENT_LOG "$LOG_DIR/ycsb_"$strategy"_"$wl"_run"$run".log"
+            
+            echo "  👉 正在全速压测，实时输出已重定向至: $CURRENT_LOG"
+            
+            # 执行压测并保存完整日志
+            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 0 $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -p leveldb.dbname=$DB_PATH -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=1 -p measurementtype=hdrhistogram" > $CURRENT_LOG 2>&1
+            
+            echo "  └─ ✅ 本次压测结束！"
+        end
+    end
+end
+
+echo "\n\n======================================================="
+echo "🎉 终极大考结束！"
+echo "👉 请前往 $LOG_DIR 查收所有的纯净版日志文件。"
+handle_exit

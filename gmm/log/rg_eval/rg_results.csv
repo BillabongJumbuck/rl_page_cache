@@ -1,0 +1,10 @@
+Strategy,Run,Time(s)
+standard_lru,1,16.28
+standard_lru,2,16.28
+standard_lru,3,16.36
+mglru,1,16.42
+mglru,2,16.68
+mglru,3,16.31
+ai_agent,1,17.16
+ai_agent,2,17.06
+ai_agent,3,17.14
