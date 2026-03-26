@@ -4,7 +4,7 @@ CFLAGS = -O2 -g -Wall
 all: chameleon.out
 
 # --- Chameleon 规则 ---
-chameleon.bpf.o: chameleon.bpf.c
+chameleon.bpf.o: chameleon.bpf.c policy_lut.h
 	$(CC) -target bpf -D__TARGET_ARCH_x86 -c $(CFLAGS) -mcpu=v3 \
 		-idirafter /usr/lib/llvm-14/lib/clang/14.0.0/include \
 		-idirafter /usr/local/include \

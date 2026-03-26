@@ -312,7 +312,7 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
 
     switch (params->active_policy) {
         case POLICY_LRU:
-            bpf_cache_ext_list_move(main_list, folio, true);  
+            // bpf_cache_ext_list_move(main_list, folio, true);  
             break;
         case POLICY_MRU:
             bpf_cache_ext_list_move(main_list, folio, false); 
