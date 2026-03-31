@@ -9,13 +9,21 @@ char _license[] SEC("license") = "GPL";
 // ==========================================
 // 运行模式开关 (互斥！每次编译前选择 1 个置为 1)
 // ==========================================
+#define ZERO         1 // 阶段零：基线消融模式 (纯 LRU，短路所有查表与记录逻辑)
 #define DATA_COLLECT 0 // 阶段一：收集模式 (往 RingBuffer 发数据给 Python)
-#define DEPLOY       1 // 阶段二：实战部署模式 (极速查表，零用户态通信)
+#define DEPLOY       0 // 阶段二：实战部署模式 (极速查表，零用户态通信)
 
 // 调试与基础特性开关
 #define CML_DEBUG 0
-#define ENABLE_LFU 1
-#define ENABLE_PATTERN_REC 1
+
+#if ZERO
+    #define ENABLE_LFU 0
+    #define ENABLE_PATTERN_REC 0
+#else
+    #define ENABLE_LFU 1
+    #define ENABLE_PATTERN_REC 1
+#endif
+
 #define WINDOW_SIZE 10000
 
 // 引入自动生成的策略网格 (仅 DEPLOY 模式需要)
@@ -216,11 +224,12 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
     main_list = bpf_cache_ext_ds_registry_new_list(memcg);
     if (main_list == 0) return -1;
     
-    // 初始化时给一个默认的 Policy
+#if !ZERO
+    // 仅在非 ZERO 模式下初始化策略 Map
     __u32 key = 0;
-    struct rl_params init_params = {};
-    init_params.active_policy = POLICY_LRU;
+    struct rl_params init_params = { .active_policy = POLICY_LRU };
     bpf_map_update_elem(&cml_params_map, &key, &init_params, BPF_ANY);
+#endif
 
     return 0;
 }
@@ -233,6 +242,12 @@ void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
     if ((__sync_fetch_and_add(&add_cnt, 1) % 100) == 0) {
         bpf_printk("[CML-ADD] pid:%u folio:%llx\n", pid, (u64)folio);
     }
+#endif
+
+#if ZERO
+    // ⚡ ZERO 模式短路：无脑加入 LRU 尾部，完全绕过 Map Lookup 和条件分支
+    bpf_cache_ext_list_add_tail(main_list, folio);
+    return;
 #endif
 
     __u32 param_key = 0;
@@ -264,6 +279,12 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     if (__sync_fetch_and_add(&acc_cnt, 1) < 5) {
         bpf_printk("[CML-RADAR] ACCESSED called!\n");
     }
+#endif
+
+#if ZERO
+    // ⚡ ZERO 模式短路：原生 LRU 依赖 Page Table 的 Accessed/Referenced bit，
+    // eBPF 侧无需移动链表节点，直接返回，做到 0 额外开销。
+    return;
 #endif
 
     __u32 param_key = 0;
@@ -309,6 +330,11 @@ void BPF_STRUCT_OPS(chameleon_folio_evicted, struct folio *folio) {
     if ((__sync_fetch_and_add(&evict_cnt, 1) % 100) == 0) {
         bpf_printk("[CML-EVICT-NOTIFY] folio:%llx (by pid:%d)\n", (u64)folio, pid);
     }
+#endif
+
+#if ZERO
+    // ⚡ ZERO 模式短路
+    return;
 #endif
 
     // 不再记录后悔事件，因为模式识别是从全局时空视角判断的，而非微观试错。
@@ -397,6 +423,12 @@ static int evict_lfu_cb(int idx, struct cache_ext_list_node *a) {
 #endif
 
 void BPF_STRUCT_OPS(chameleon_evict_folios, struct cache_ext_eviction_ctx *eviction_ctx, struct mem_cgroup *memcg) {
+#if ZERO
+    // ⚡ ZERO 模式短路：锁定唯一回调 evict_lru_cb
+    bpf_cache_ext_list_iterate(memcg, main_list, evict_lru_cb, eviction_ctx);
+    return;
+#endif
+
     __u32 param_key = 0;
 
     struct rl_params *params = bpf_map_lookup_elem(&cml_params_map, &param_key);
