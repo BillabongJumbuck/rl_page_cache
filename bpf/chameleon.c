@@ -1,3 +1,4 @@
+// chameleon.c: eBPF 程序的用户态加载器
 #include <argp.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -7,10 +8,18 @@
 #include <signal.h>
 #include <sys/resource.h>
 #include <stdint.h>
+#include <stdbool.h>
+
 typedef uint64_t u64;
 typedef uint32_t u32;
-#include "chameleon.skel.h"
 
+// ==============================================================
+// ⚡ 核心修改：必须在这里显式定义宏，保证与 chameleon.bpf.c 状态一致
+// 否则 chameleon.skel.h 中的 feature_events 成员将无法被正确识别
+// ==============================================================
+#define DATA_COLLECT 0 
+
+#include "chameleon.skel.h"
 
 struct cmdline_args { char *cgroup_path; };
 static struct argp_option options[] = { 
@@ -27,12 +36,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static volatile bool exiting = false;
 static void sig_handler(int sig) { exiting = true; }
 
-// ==============================================================
-// 🌟 核心修改 1：重命名挂载路径，适配特征提取架构
-// ==============================================================
 const char *PIN_PARAMS_PATH  = "/sys/fs/bpf/cml_params_map";
 const char *PIN_STATS_PATH   = "/sys/fs/bpf/cml_stats_map";
-const char *PIN_FEATURE_PATH = "/sys/fs/bpf/cml_feature_events"; // 改为 Feature RingBuffer 路径
+const char *PIN_FEATURE_PATH = "/sys/fs/bpf/cml_feature_events"; 
 
 int main(int argc, char **argv) {
     struct rlimit rlim = {
@@ -63,9 +69,6 @@ int main(int argc, char **argv) {
     skel = chameleon_bpf__open_and_load(); 
     if (!skel) goto cleanup;
 
-    // ==============================================================
-    // 🌟 核心修改 2：把 feature_events Pin 到文件系统
-    // ==============================================================
     bpf_map__unpin(skel->maps.cml_params_map, PIN_PARAMS_PATH);
     bpf_map__unpin(skel->maps.cml_stats_map, PIN_STATS_PATH);
 #if DATA_COLLECT
@@ -92,7 +95,6 @@ int main(int argc, char **argv) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     
-    // 数据面只负责站岗，不处理任何用户态逻辑
     while (!exiting) {
         sleep(1); 
     }
@@ -101,9 +103,6 @@ cleanup:
     if (skel) {
         bpf_map__unpin(skel->maps.cml_params_map, PIN_PARAMS_PATH);
         bpf_map__unpin(skel->maps.cml_stats_map, PIN_STATS_PATH);
-        // ==============================================================
-        // 🌟 核心修改 3：退出时清理 feature_events
-        // ==============================================================
 #if DATA_COLLECT
         bpf_map__unpin(skel->maps.feature_events, PIN_FEATURE_PATH);
 #endif

@@ -1,3 +1,4 @@
+// data_collector.c: 负责从 eBPF 程序收集特征数据并写入 CSV 文件，供后续模型训练使用。
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -13,10 +14,6 @@ struct feature_event {
     uint32_t window_id;
     uint32_t seq_ratio_10000;
     uint32_t avg_irr;
-    uint32_t unique_ratio_10000;
-    uint32_t irr_0_1k_ratio;
-    uint32_t irr_1k_10k_ratio;
-    uint32_t irr_10k_plus_ratio;
 };
 
 const char *PIN_FEATURE_PATH = "/sys/fs/bpf/cml_feature_events";
@@ -27,17 +24,26 @@ static void sig_handler(int sig) { exiting = true; }
 
 // RingBuffer 回调函数
 static int handle_event(void *ctx, void *data, size_t data_sz) {
+    // 🛡️ 安全防御：防止 BPF 侧结构体变更导致的内存越界
+    if (data_sz < sizeof(struct feature_event)) {
+        fprintf(stderr, "[Warn] Dropping malformed event (size %zu < expected %zu)\n", 
+                data_sz, sizeof(struct feature_event));
+        return 0;
+    }
+
     const struct feature_event *e = (const struct feature_event *)data;
     
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     
-    fprintf(csv_file, "%ld.%09ld,%u,%u,%u,%u,%u,%u,%u\n",
+    // ⚡ 核心修改：精简 CSV 字段输出
+    fprintf(csv_file, "%ld.%09ld,%u,%u,%u\n",
             ts.tv_sec, ts.tv_nsec,
             e->window_id,
-            e->seq_ratio_10000, e->avg_irr, e->unique_ratio_10000,
-            e->irr_0_1k_ratio, e->irr_1k_10k_ratio, e->irr_10k_plus_ratio);
+            e->seq_ratio_10000, 
+            e->avg_irr);
     
+    // 强制刷新，防止程序异常退出时数据丢失
     fflush(csv_file);
     return 0;
 }
@@ -61,7 +67,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    fprintf(csv_file, "timestamp,window_id,seq_ratio,avg_irr,unique_ratio,irr_0_1k,irr_1k_10k,irr_10k_plus\n");
+    fprintf(csv_file, "timestamp,window_id,seq_ratio,avg_irr\n");
     fflush(csv_file);
 
     // 2. 获取 pinned RingBuffer

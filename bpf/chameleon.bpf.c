@@ -9,22 +9,25 @@ char _license[] SEC("license") = "GPL";
 // ==========================================
 // 运行模式开关 (互斥！每次编译前选择 1 个置为 1)
 // ==========================================
-#define ZERO         1 // 阶段零：基线消融模式 (纯 LRU，短路所有查表与记录逻辑)
-#define DATA_COLLECT 0 // 阶段一：收集模式 (往 RingBuffer 发数据给 Python)
-#define DEPLOY       0 // 阶段二：实战部署模式 (极速查表，零用户态通信)
+#define ZERO         0 // 关闭消融模式
+#define DATA_COLLECT 0 // 开启收集模式 (向 RingBuffer 发送特征)
+#define DEPLOY       1 // 关闭部署模式
 
 // 调试与基础特性开关
 #define CML_DEBUG 0
 
+// ==========================================
+// 特性联动开关 (依据运行模式自动推导)
+// ==========================================
 #if ZERO
     #define ENABLE_LFU 0
     #define ENABLE_PATTERN_REC 0
 #else
-    #define ENABLE_LFU 1
-    #define ENABLE_PATTERN_REC 1
+    #define ENABLE_LFU 0         // ⚡ [核心修改] 彻底关闭 LFU 编译，根除 O(N) 查表
+    #define ENABLE_PATTERN_REC 1 // 保持特征收集开启
 #endif
 
-#define WINDOW_SIZE 10000
+#define WINDOW_SIZE 1000
 
 // 引入自动生成的策略网格 (仅 DEPLOY 模式需要)
 #if DEPLOY
@@ -123,6 +126,8 @@ struct cpu_stat {
     u64 last_mapping;
     u64 last_index;
     u32 current_window_id;
+    u32 smoothed_seq; 
+    u32 smoothed_irr;
 };
 
 struct {
@@ -135,6 +140,11 @@ struct {
 #define SAMPLING_MASK 0x3F 
 
 static inline void record_access(u64 mapping, u64 index) {
+    // ⚡ 核心优化：利用 CPU ID 或时间戳的低位作为极简伪随机数
+    // 在查任何 BPF Map 之前，直接短路 63/64 的流量！
+    u64 raw_tick = bpf_ktime_get_ns();
+    if ((raw_tick & SAMPLING_MASK) != 0) return; 
+
     u32 key = 0;
     struct cpu_stat *st = bpf_map_lookup_elem(&cpu_stats_map, &key);
     if (!st) return;
@@ -158,6 +168,8 @@ static inline void record_access(u64 mapping, u64 index) {
         
         u32 cur_seq_ratio_10000 = (st->seq_access_count * 10000) / WINDOW_SIZE;
         u32 cur_avg_irr = events > 0 ? (total / events) : 0;
+        st->smoothed_seq = (st->smoothed_seq * 3 + cur_seq_ratio_10000) >> 2;
+        st->smoothed_irr = (st->smoothed_irr * 3 + cur_avg_irr) >> 2;
 
 #if DATA_COLLECT
         // [收集模式] 打包所有特征，推入 RingBuffer 喂给 Python
@@ -170,8 +182,8 @@ static inline void record_access(u64 mapping, u64 index) {
         }
 #elif DEPLOY
         // [部署模式] ⚡ 零通讯查表，立刻篡改内核页替换控制参数！
-        u32 seq_percent = cur_seq_ratio_10000 / 100;
-        u32 irr_log_idx = fast_log2(cur_avg_irr);
+        u32 seq_percent = st->smoothed_seq / 100;
+        u32 irr_log_idx = fast_log2(st->smoothed_irr);
         
         if (seq_percent > 100) seq_percent = 100;
         if (irr_log_idx > 32) irr_log_idx = 32;

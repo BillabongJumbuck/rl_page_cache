@@ -22,8 +22,8 @@ sudo mkdir -p $CGROUP_DIR
 
 # 🌟 关键修复：写入 cgroup v2 内存限制，触发内核回收机制
 echo "[System] Setting cgroup v2 memory limits..."
-echo "1024M" | sudo tee $CGROUP_DIR/memory.high > /dev/null
-echo "800M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
+echo "800M" | sudo tee $CGROUP_DIR/memory.high > /dev/null
+echo "1024M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
 echo 0 | sudo tee $CGROUP_DIR/memory.swap.max > /dev/null 2>/dev/null
 
 # 3. 关闭MGLRU 
