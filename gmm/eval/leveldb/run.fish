@@ -15,6 +15,7 @@ mkdir -p $LOG_DIR
 
 set RECORD_COUNT 5000000
 set OP_COUNT 300000
+set THREAD_COUNT 4
 
 # 测试矩阵设定
 set strategies  "ai_agent" "standard_lru" "mglru"
@@ -60,6 +61,20 @@ function handle_exit --on-signal SIGINT --on-signal SIGTERM
     exit 0
 end
 
+function setup_cgroup
+    echo "[System] 🧱 正在(重)建 1024MB 内存牢笼..."
+    sudo mkdir -p $CGROUP_DIR
+    
+    echo "800M" | sudo tee $CGROUP_DIR/memory.high > /dev/null
+    echo "1024M" | sudo tee $CGROUP_DIR/memory.max > /dev/null
+    echo 0 | sudo tee $CGROUP_DIR/memory.swap.max > /dev/null 2>/dev/null
+    
+    if test -d $CGROUP_DIR
+        echo "✅ Cgroup 牢笼已就绪：$CGROUP_DIR"
+    end
+end
+
+
 # ==========================================
 # 1. 检查母体是否存在
 # ==========================================
@@ -95,6 +110,7 @@ for strategy in $strategies
     echo "======================================================="
     
     cleanup_bpf_agent
+    setup_cgroup
     
     # 🌟 每次切换策略时，恢复干净的数据库物理环境
     echo "[Data Restore] 🔄 正在从 Golden Copy 极速克隆数据库状态 (耗时仅需几秒)..."
@@ -139,7 +155,7 @@ for strategy in $strategies
             echo "  👉 正在全速压测，实时输出已重定向至: $CURRENT_LOG"
             
             # 执行压测并保存完整日志
-            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 0 $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -p leveldb.dbname=$DB_PATH -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=1 -p measurementtype=hdrhistogram" > $CURRENT_LOG 2>&1
+            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 0 $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -p leveldb.dbname=$DB_PATH -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=$THREAD_COUNT -p measurementtype=hdrhistogram" > $CURRENT_LOG 2>&1
             
             echo "  └─ ✅ 本次压测结束！"
         end

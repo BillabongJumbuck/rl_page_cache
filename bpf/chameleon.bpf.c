@@ -44,7 +44,7 @@ enum policy_type {
 
 struct rl_params { __u32 active_policy; };
 struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY); 
     __uint(max_entries, 1);
     __type(key, __u32);
     __type(value, struct rl_params);
@@ -69,7 +69,7 @@ struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH); 
     __uint(max_entries, 200000); 
     __type(key, __u64);          
-    __type(value, u8);           
+    __type(value, __u32); // [核心修改] 将 u8 改为 u32，对齐内存以支持原子操作         
 } lfu_freq_map SEC(".maps");
 #endif
 
@@ -83,10 +83,6 @@ struct feature_event {
     u32 window_id;
     u32 seq_ratio_10000;    
     u32 avg_irr;            
-    u32 unique_ratio_10000; 
-    u32 irr_0_1k_ratio;     
-    u32 irr_1k_10k_ratio;   
-    u32 irr_10k_plus_ratio; 
 };
 
 struct {
@@ -119,13 +115,6 @@ struct cpu_stat {
     u64 last_mapping;
     u64 last_index;
     u32 current_window_id;
-#if DATA_COLLECT
-    // 这些高阶特征只在收集训练数据时才占用内存和计算资源
-    u64 unique_pages_count;
-    u64 irr_0_1k_count;
-    u64 irr_1k_10k_count;
-    u64 irr_10k_plus_count;
-#endif
 };
 
 struct {
@@ -169,10 +158,6 @@ static inline void record_access(u64 mapping, u64 index) {
             event->window_id = st->current_window_id;
             event->seq_ratio_10000 = cur_seq_ratio_10000;
             event->avg_irr = cur_avg_irr;
-            event->unique_ratio_10000 = (st->unique_pages_count * 10000) / (WINDOW_SIZE >> 6);
-            event->irr_0_1k_ratio = events > 0 ? (st->irr_0_1k_count * 10000) / events : 0;
-            event->irr_1k_10k_ratio = events > 0 ? (st->irr_1k_10k_count * 10000) / events : 0;
-            event->irr_10k_plus_ratio = events > 0 ? (st->irr_10k_plus_count * 10000) / events : 0;
             bpf_ringbuf_submit(event, 0);
         }
 #elif DEPLOY
@@ -195,12 +180,6 @@ static inline void record_access(u64 mapping, u64 index) {
         st->seq_access_count = 0;
         st->total_irr = 0;
         st->irr_event_count = 0;
-#if DATA_COLLECT
-        st->unique_pages_count = 0;
-        st->irr_0_1k_count = 0;
-        st->irr_1k_10k_count = 0;
-        st->irr_10k_plus_count = 0;
-#endif
     }
 
     // 3. 采样拦截器
@@ -215,22 +194,10 @@ static inline void record_access(u64 mapping, u64 index) {
         u64 irr = (st->tick - info->last_access_tick);
         st->total_irr += irr;
         st->irr_event_count++;
-
-#if DATA_COLLECT
-        // DEPLOY模式下直接剪除这些耗时的 if-else 分支
-        if (irr < 1000) st->irr_0_1k_count++;
-        else if (irr < 10000) st->irr_1k_10k_count++;
-        else st->irr_10k_plus_count++;
-
-        if (info->window_id != win_id) st->unique_pages_count++;
-#endif
         
         info->last_access_tick = st->tick;
         info->window_id = win_id;
     } else {
-#if DATA_COLLECT
-        st->unique_pages_count++;
-#endif
         struct page_track_info new_info = {
             .last_access_tick = st->tick,
             .window_id = win_id
@@ -320,11 +287,13 @@ void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
 #if ENABLE_LFU
         case POLICY_LFU: {
             u64 addr = (u64)folio;
-            u8 *freq = bpf_map_lookup_elem(&lfu_freq_map, &addr);
+            u32 *freq = bpf_map_lookup_elem(&lfu_freq_map, &addr); // [修改] 对应改为 u32 *
             if (freq) {
-                if (*freq < 255) (*freq)++;
+                if (*freq < 255) {
+                    __sync_fetch_and_add(freq, 1); // [核心修改] 使用 LLVM 的原子加指令，绝不丢访问
+                }
             } else {
-                u8 val = 1;
+                u32 val = 1;
                 bpf_map_update_elem(&lfu_freq_map, &addr, &val, BPF_ANY);
             }
             bpf_cache_ext_list_move(main_list, folio, true); 
@@ -415,7 +384,7 @@ static int evict_lfu_cb(int idx, struct cache_ext_list_node *a) {
         return CACHE_EXT_CONTINUE_ITER;
     }
 
-    u8 val = freq ? *freq : 0;
+    u32 val = freq ? *freq : 0;
 
     if (val <= 1) {
         return CACHE_EXT_EVICT_NODE;
