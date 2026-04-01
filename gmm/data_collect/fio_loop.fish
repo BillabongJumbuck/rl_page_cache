@@ -36,7 +36,7 @@ while true
                 fio --name=oltp_mixed --filename=$TEST_FILE --rw=randrw --rwmixread=70 --random_distribution=zipf:0.8 --bs=8k --size=5G --runtime=20 --time_based --direct=0 --fadvise_hint=0 --invalidate=0 > /dev/null 2>&1
 
             case "spike"
-                echo ">>> [乱序] 洪峰突起 (6 线程并发) - 15秒"
+                echo ">>> [乱序] 洪峰突起 ( 线程并发) - 15秒"
                 fio --name=spike --filename=$TEST_FILE --rw=randread --numjobs=1 --bs=4k --size=5G --runtime=15 --time_based --group_reporting --direct=0 --fadvise_hint=0 --invalidate=0 > /dev/null 2>&1
 
             case "analytics"
