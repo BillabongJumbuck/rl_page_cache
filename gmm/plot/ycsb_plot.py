@@ -68,6 +68,10 @@ col_order = [(s, r) for s in strategies for r in [1, 2, 3]]
 existing_cols = [c for c in col_order if c in pivot_df.columns]
 pivot_df = pivot_df[existing_cols]
 
+# 保存为 CSV 以备后续分析（可选）
+pivot_df.to_csv(os.path.join(ROOT_DIR, "eval", "leveldb", "ycsb_full_results.csv"))
+print("✅ 数据提取与透视完成，已保存为 CSV 文件。")
+
 # ==========================================
 # 4. 同色系渐变填色 (区分 3 次不同 Run)
 # ==========================================

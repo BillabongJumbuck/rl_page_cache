@@ -1,3 +1,3 @@
-Run runtime(sec): 13.0014
+Run runtime(sec): 71.8554
 Run operations(ops): 300000
-Run throughput(ops/sec): 23074.5
+Run throughput(ops/sec): 4175.05
