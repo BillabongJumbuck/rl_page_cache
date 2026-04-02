@@ -18,20 +18,20 @@ set OP_COUNT 300000
 set THREAD_COUNT 1
 
 # 测试矩阵设定
-set strategies "ai_agent"  # "standard_lru" "mglru"
+set strategies  "standard_lru" # "mglru" "ai_agent"
 set workloads a b c d e f
 set nr_runs 3
 
 # ==========================================
 # 0. 准备毒药文件 (用于模拟缓存污染)
 # ==========================================
-set POISON_FILE "/tmp/poison_scan.dat"
-if not test -f $POISON_FILE
-    echo "[Prepare] ☠️ 正在锻造 2GB 毒药文件用于模拟后台扫描污染..."
-    dd if=/dev/urandom of=$POISON_FILE bs=1M count=2000 status=progress
-    sync
-    echo "[Prepare] ✅ 毒药文件锻造完毕！"
-end
+# set POISON_FILE "/tmp/poison_scan.dat"
+# if not test -f $POISON_FILE
+#     echo "[Prepare] ☠️ 正在锻造 2GB 毒药文件用于模拟后台扫描污染..."
+#     dd if=/dev/urandom of=$POISON_FILE bs=1M count=2000 status=progress
+#     sync
+#     echo "[Prepare] ✅ 毒药文件锻造完毕！"
+# end
 
 # ==========================================
 # 1. 绝对防御的清理钩子
@@ -152,17 +152,17 @@ for strategy in $strategies
             # --------------------------------------------------
             
             # 1. 毒药进程：独占 CPU 1
-            echo "  ☠️ 正在注入后台顺序扫描 (精准绑定至 CPU 1)..."
-            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && while true; do taskset -c 1 cat $POISON_FILE > /dev/null; done" &
-            set POISON_PID $last_pid
+            # echo "  ☠️ 正在注入后台顺序扫描 (精准绑定至 CPU 1)..."
+            # bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && while true; do taskset -c 1 cat $POISON_FILE > /dev/null; done" &
+            # set POISON_PID $last_pid
 
             # 2. YCSB 前台业务：独占 CPU 0
             echo "  👉 正在单核全速压测 YCSB (精准绑定至 CPU 0)，输出至: $CURRENT_LOG"
             bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 0 $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -p leveldb.dbname=$DB_PATH -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=1 -p measurementtype=hdrhistogram" > $CURRENT_LOG 2>&1
             
-            # 3. YCSB 跑完后，立刻击毙毒药
-            sudo kill -9 $POISON_PID 2>/dev/null
-            echo "  └─ ✅ 本次单核压测结束！"
+            # # 3. YCSB 跑完后，立刻击毙毒药
+            # sudo kill -9 $POISON_PID 2>/dev/null
+            # echo "  └─ ✅ 本次单核压测结束！"
         end
     end
 end
