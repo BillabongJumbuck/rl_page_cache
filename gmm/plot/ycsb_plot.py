@@ -61,7 +61,8 @@ if df.empty:
 pivot_df = df.pivot_table(index='Workload', columns=['Strategy', 'Run'], values='OPS')
 
 # 强制规定柱子的从左到右排列顺序
-strategies = ["Linux LRU", "MGLRU", "AI Agent"]
+# strategies = ["Linux LRU", "MGLRU", "AI Agent"]
+strategies = ["Linux LRU", "AI Agent"]
 col_order = [(s, r) for s in strategies for r in [1, 2, 3]]
 
 # 过滤出实际存在的列并重新排序

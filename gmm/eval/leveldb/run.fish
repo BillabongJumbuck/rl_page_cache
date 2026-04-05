@@ -18,7 +18,7 @@ set OP_COUNT 300000
 set THREAD_COUNT 1
 
 # 测试矩阵设定
-set strategies "ai_agent"  # "standard_lru" "mglru"
+set strategies  "standard_lru" "mglru" # "ai_agent"
 set workloads a b c d e f
 set nr_runs 3
 
