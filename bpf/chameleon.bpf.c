@@ -14,7 +14,7 @@ char _license[] SEC("license") = "GPL";
 #define DEPLOY       1 // 关闭部署模式
 
 #define WINDOW_SIZE 100
-#define SAMPLING_MASK 0x0F
+#define SAMPLING_MASK 0x3F
 #define TRACK_DEPTH 4
 
 enum policy_type {
