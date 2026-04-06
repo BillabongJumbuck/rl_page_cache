@@ -1,3 +1,4 @@
+// chameleon.bpf.c - 基于访问模式动态调整页面回收优先级的 BPF 实现
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -13,7 +14,8 @@ char _license[] SEC("license") = "GPL";
 #define DEPLOY       1 // 关闭部署模式
 
 #define WINDOW_SIZE 100
-#define SAMPLING_MASK 0xFF 
+#define SAMPLING_MASK 0x0F
+#define TRACK_DEPTH 4
 
 enum policy_type {
     POLICY_LRU = 0,
@@ -27,6 +29,7 @@ static u64 main_list;
 // ==========================================
 #if DATA_COLLECT
 struct feature_event {
+    u32 tid;
     u32 window_id;
     u32 seq_ratio_10000;    
     u32 avg_irr;            
@@ -59,6 +62,8 @@ struct thread_stat {
     u64 seq_access_count;
     u64 total_irr;
     u64 irr_event_count;
+    u64 last_mappings[TRACK_DEPTH]; // 👈 修改：数组化
+    u64 last_indexes[TRACK_DEPTH];
     u64 last_mapping;
     u64 last_index;
     u32 current_window_id;
@@ -89,10 +94,9 @@ static inline void record_access(u64 mapping, u64 index) {
     struct thread_stat *st = bpf_map_lookup_elem(&thread_stats_map, &tid);
     
     if (!st) {
-        // 第一次见到这个线程，建档
         struct thread_stat new_st = {};
-        new_st.last_mapping = mapping;
-        new_st.last_index = index;
+        new_st.last_mappings[0] = mapping;
+        new_st.last_indexes[0] = index;
         new_st.current_policy = POLICY_LRU; 
         bpf_map_update_elem(&thread_stats_map, &tid, &new_st, BPF_ANY);
         return;
@@ -100,17 +104,30 @@ static inline void record_access(u64 mapping, u64 index) {
 
     st->tick++;
     
-    // 1. 连续性计算 (锁定同一个文件 mapping)
-    if (mapping == st->last_mapping) {
-        u64 diff = index - st->last_index;
-        if (diff > 0 && diff <= 512) {
-            st->seq_access_count++;
+    // 1. 连续性计算 (支持最高 4 路交替顺序读)
+    bool is_seq = false;
+    #pragma unroll
+    for (int i = 0; i < TRACK_DEPTH; i++) {
+        if (st->last_mappings[i] == mapping) {
+            u64 diff = index - st->last_indexes[i];
+            // 容忍一定的预读跳跃
+            if (diff > 0 && diff <= 512) {
+                st->seq_access_count++;
+                is_seq = true;
+            }
+            st->last_indexes[i] = index; // 更新当前文件的推进游标
+            break;
         }
     }
-    st->last_mapping = mapping;
-    st->last_index = index;
+    
+    // 如果是新文件，替换最老记录 (利用 tick 算一个简单的哈希取模作为驱逐位)
+    if (!is_seq) {
+        int replace_idx = st->tick & (TRACK_DEPTH - 1); // 位运算替代取模更高效
+        st->last_mappings[replace_idx] = mapping;
+        st->last_indexes[replace_idx] = index;
+    }
 
-    // 2. 窗口结算与硬核裁决
+    // 2. 窗口结算与特征吐出
     if (st->tick > 0 && (st->tick % WINDOW_SIZE) == 0) {
         u64 events = st->irr_event_count; 
         u64 total = st->total_irr;
@@ -122,8 +139,6 @@ static inline void record_access(u64 mapping, u64 index) {
         st->smoothed_irr = (st->smoothed_irr * 3 + cur_avg_irr) >> 2;
 
 #if DEPLOY
-        // 铁阈值：不信 AI，只信物理规律
-        // 如果当前线程的顺序扫描比例超过 80%，死锁它为 MRU！
         if (st->smoothed_seq > 8000) {
             st->current_policy = POLICY_MRU;
         } else {
@@ -134,6 +149,7 @@ static inline void record_access(u64 mapping, u64 index) {
 #if DATA_COLLECT
         struct feature_event *event = bpf_ringbuf_reserve(&feature_events, sizeof(*event), 0);
         if (event) {
+            event->tid = tid;
             event->window_id = st->current_window_id;
             event->seq_ratio_10000 = cur_seq_ratio_10000;
             event->avg_irr = cur_avg_irr;
@@ -147,19 +163,25 @@ static inline void record_access(u64 mapping, u64 index) {
         st->irr_event_count = 0;
     }
 
+    // 3. 物理级重用距离 (IRR) 计算
     u64 page_id = mapping ^ (index << 12);
     u32 win_id = st->current_window_id;
+    u64 current_time_us = raw_tick / 1000; // 转化为微秒，统一物理时间标尺
+
     struct page_track_info *info = bpf_map_lookup_elem(&page_tracking_map, &page_id);
     
     if (info) {
-        u64 irr = (st->tick - info->last_access_tick);
-        st->total_irr += irr;
-        st->irr_event_count++;
-        info->last_access_tick = st->tick;
+        // 安全校验：防止同一微秒内并发读引发下溢
+        if (current_time_us > info->last_access_tick) {
+            u64 irr = current_time_us - info->last_access_tick;
+            st->total_irr += irr;
+            st->irr_event_count++;
+        }
+        info->last_access_tick = current_time_us;
         info->window_id = win_id;
     } else {
         struct page_track_info new_info = {
-            .last_access_tick = st->tick,
+            .last_access_tick = current_time_us,
             .window_id = win_id
         };
         bpf_map_update_elem(&page_tracking_map, &page_id, &new_info, BPF_ANY);

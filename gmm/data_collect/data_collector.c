@@ -11,6 +11,7 @@
 
 // 保持和 eBPF 中完全一致的结构体定义
 struct feature_event {
+    uint32_t tid;
     uint32_t window_id;
     uint32_t seq_ratio_10000;
     uint32_t avg_irr;
@@ -37,8 +38,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     clock_gettime(CLOCK_REALTIME, &ts);
     
     // ⚡ 核心修改：精简 CSV 字段输出
-    fprintf(csv_file, "%ld.%09ld,%u,%u,%u\n",
+    fprintf(csv_file, "%ld.%09ld,%u,%u,%u,%u\n",
             ts.tv_sec, ts.tv_nsec,
+            e->tid,
             e->window_id,
             e->seq_ratio_10000, 
             e->avg_irr);
@@ -67,7 +69,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    fprintf(csv_file, "timestamp,window_id,seq_ratio,avg_irr\n");
+    fprintf(csv_file, "timestamp,tid,window_id,seq_ratio,avg_irr\n");
     fflush(csv_file);
 
     // 2. 获取 pinned RingBuffer
