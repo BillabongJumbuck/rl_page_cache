@@ -13,8 +13,9 @@
 struct feature_event {
     uint32_t tid;
     uint32_t window_id;
-    uint32_t seq_ratio_10000;
-    uint32_t avg_irr;
+    uint32_t seq_ratio_10000;    
+    uint32_t hot_ratio_10000;
+    uint32_t new_ratio_10000;   
 };
 
 const char *PIN_FEATURE_PATH = "/sys/fs/bpf/cml_feature_events";
@@ -38,12 +39,13 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     clock_gettime(CLOCK_REALTIME, &ts);
     
     // ⚡ 核心修改：精简 CSV 字段输出
-    fprintf(csv_file, "%ld.%09ld,%u,%u,%u,%u\n",
+    fprintf(csv_file, "%ld.%09ld,%u,%u,%u,%u,%u\n",
             ts.tv_sec, ts.tv_nsec,
             e->tid,
             e->window_id,
             e->seq_ratio_10000, 
-            e->avg_irr);
+            e->hot_ratio_10000,
+            e->new_ratio_10000);
     
     // 强制刷新，防止程序异常退出时数据丢失
     fflush(csv_file);
@@ -69,7 +71,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    fprintf(csv_file, "timestamp,tid,window_id,seq_ratio,avg_irr\n");
+    fprintf(csv_file, "timestamp,tid,window_id,seq_ratio,hot_ratio,new_ratio\n");
     fflush(csv_file);
 
     // 2. 获取 pinned RingBuffer

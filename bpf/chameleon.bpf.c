@@ -10,11 +10,11 @@ char _license[] SEC("license") = "GPL";
 // ==========================================
 // 运行模式开关 (互斥！每次编译前选择 1 个置为 1)
 // ==========================================
-#define DATA_COLLECT 0 // 开启收集模式 (向 RingBuffer 发送特征)
-#define DEPLOY       1 // 关闭部署模式
+#define DATA_COLLECT 1 // 开启收集模式 (向 RingBuffer 发送特征)
+#define DEPLOY       0 // 关闭部署模式
 
 #define WINDOW_SIZE 100
-#define SAMPLING_MASK 0x3F
+#define SAMPLING_MASK 0x0F
 #define TRACK_DEPTH 4
 
 enum policy_type {
@@ -32,7 +32,8 @@ struct feature_event {
     u32 tid;
     u32 window_id;
     u32 seq_ratio_10000;    
-    u32 avg_irr;            
+    u32 hot_ratio_10000;
+    u32 new_ratio_10000;           
 };
 
 struct {
@@ -60,15 +61,16 @@ struct {
 struct thread_stat {
     u64 tick;
     u64 seq_access_count;
-    u64 total_irr;
-    u64 irr_event_count;
+    u64 hot_access_count;
+    u64 new_page_count;
     u64 last_mappings[TRACK_DEPTH]; // 👈 修改：数组化
     u64 last_indexes[TRACK_DEPTH];
     u64 last_mapping;
     u64 last_index;
     u32 current_window_id;
     u32 smoothed_seq; 
-    u32 smoothed_irr;
+    u32 smoothed_hot;
+    u32 smoothed_new;
     u32 current_policy; 
 };
 
@@ -129,14 +131,13 @@ static inline void record_access(u64 mapping, u64 index) {
 
     // 2. 窗口结算与特征吐出
     if (st->tick > 0 && (st->tick % WINDOW_SIZE) == 0) {
-        u64 events = st->irr_event_count; 
-        u64 total = st->total_irr;
+        u32 cur_seq_ratio = (st->seq_access_count * 10000) / WINDOW_SIZE;
+        u32 cur_hot_ratio = (st->hot_access_count * 10000) / WINDOW_SIZE;
+        u32 cur_new_ratio = (st->new_page_count * 10000) / WINDOW_SIZE;
         
-        u32 cur_seq_ratio_10000 = (st->seq_access_count * 10000) / WINDOW_SIZE;
-        u32 cur_avg_irr = events > 0 ? (total / events) : 0;
-        
-        st->smoothed_seq = (st->smoothed_seq * 3 + cur_seq_ratio_10000) >> 2;
-        st->smoothed_irr = (st->smoothed_irr * 3 + cur_avg_irr) >> 2;
+        st->smoothed_seq = (st->smoothed_seq * 3 + cur_seq_ratio) >> 2;
+        st->smoothed_hot = (st->smoothed_hot * 3 + cur_hot_ratio) >> 2;
+        st->smoothed_new = (st->smoothed_new * 3 + cur_new_ratio) >> 2;
 
 #if DEPLOY
         if (st->smoothed_seq > 8000) {
@@ -151,16 +152,17 @@ static inline void record_access(u64 mapping, u64 index) {
         if (event) {
             event->tid = tid;
             event->window_id = st->current_window_id;
-            event->seq_ratio_10000 = cur_seq_ratio_10000;
-            event->avg_irr = cur_avg_irr;
+            event->seq_ratio_10000 = cur_seq_ratio;
+            event->hot_ratio_10000 = cur_hot_ratio;
+            event->new_ratio_10000 = cur_new_ratio;
             bpf_ringbuf_submit(event, 0);
         }
 #endif
 
         st->current_window_id++;
         st->seq_access_count = 0;
-        st->total_irr = 0;
-        st->irr_event_count = 0;
+        st->hot_access_count = 0;
+        st->new_page_count = 0;
     }
 
     // 3. 物理级重用距离 (IRR) 计算
@@ -174,12 +176,14 @@ static inline void record_access(u64 mapping, u64 index) {
         // 安全校验：防止同一微秒内并发读引发下溢
         if (current_time_us > info->last_access_tick) {
             u64 irr = current_time_us - info->last_access_tick;
-            st->total_irr += irr;
-            st->irr_event_count++;
+            if (irr < 50000) { 
+                st->hot_access_count++;
+            }
         }
         info->last_access_tick = current_time_us;
         info->window_id = win_id;
     } else {
+        st->new_page_count++;
         struct page_track_info new_info = {
             .last_access_tick = current_time_us,
             .window_id = win_id
