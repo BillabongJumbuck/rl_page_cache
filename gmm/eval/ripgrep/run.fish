@@ -5,14 +5,13 @@ set ROOT_DIR "/home/messidor/rl_page_cache"
 set GMM_DIR "$ROOT_DIR/gmm"
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_eval_test"
 set CML_BIN "$ROOT_DIR/bpf/chameleon.out"
-set AGENT_BIN "$GMM_DIR/deploy/cml_agent.out"
 
 set TARGET_DIR "$HOME/linux"
 set LOG_DIR "$GMM_DIR/log/rg_eval"
 mkdir -p $LOG_DIR
 
 # 测试矩阵：每种策略跑 3 次
-set strategies "standard_lru" "mglru" "ai_agent"
+set strategies  "ai_agent" # "standard_lru" "mglru"
 set RUN_COUNT 3
 
 # 检查依赖
@@ -98,9 +97,6 @@ for strategy in $strategies
         sudo $CML_BIN -c $CGROUP_DIR < /dev/null > $LOG_DIR/chameleon_$strategy.log 2>&1 &
         sleep 2 
         
-        echo "  └─ 🧠 启动纯血 C++ AI 智能体..."
-        sudo $AGENT_BIN < /dev/null > $LOG_DIR/ai_agent_$strategy.log 2>&1 &
-        sleep 1
     end
 
     for run in (seq 1 $RUN_COUNT)

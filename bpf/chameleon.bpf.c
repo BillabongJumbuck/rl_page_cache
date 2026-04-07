@@ -10,8 +10,8 @@ char _license[] SEC("license") = "GPL";
 // ==========================================
 // 运行模式开关 (互斥！每次编译前选择 1 个置为 1)
 // ==========================================
-#define DATA_COLLECT 1 // 开启收集模式 (向 RingBuffer 发送特征)
-#define DEPLOY       0 // 关闭部署模式
+#define DATA_COLLECT 0 // 开启收集模式 (向 RingBuffer 发送特征)
+#define DEPLOY       1 // 关闭部署模式
 
 #define WINDOW_SIZE 100
 #define SAMPLING_MASK 0x0F

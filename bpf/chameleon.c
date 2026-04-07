@@ -13,7 +13,7 @@
 typedef uint64_t u64;
 typedef uint32_t u32;
 
-#define DATA_COLLECT 1 
+#define DATA_COLLECT 0 
 
 #include "chameleon.skel.h"
 

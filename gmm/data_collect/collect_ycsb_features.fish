@@ -17,7 +17,7 @@ set CSV_DIR "$ROOT_DIR/gmm/feature_data"
 mkdir -p $LOG_DIR
 mkdir -p $CSV_DIR
 
-set WORKLOADS a b c d e f
+set WORKLOADS f
 set RECORD_COUNT 5000000
 set OP_COUNT 300000
 
