@@ -18,7 +18,7 @@ set THREAD_COUNT 1
 
 # 测试矩阵设定
 set strategies "ai_agent" #  "standard_lru"
-set workloads a b c d e f
+set workloads b c d e f
 set nr_runs 3
 
 # ==========================================

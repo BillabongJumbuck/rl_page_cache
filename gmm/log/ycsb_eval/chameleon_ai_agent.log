@@ -1,4 +1,4 @@
 🚀 Chameleon Control Plane started! Monitoring memory access patterns...
-[🧠 Agent] TID: 333 | SeqRatio: 0.31 | AvgStride: 440.3 -> Policy: 🟢 LRU (Protect)
+[🧠 Agent] TID: 333 | SeqRatio: 0.28 | AvgStride: 469.6 -> Policy: 🟢 LRU (Protect)
 
 🛑 Chameleon Control Plane stopped and cleaned up.

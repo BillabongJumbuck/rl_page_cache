@@ -44,25 +44,36 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static volatile bool exiting = false;
 static void sig_handler(int sig) { exiting = true; }
 
+// static FILE *csv_log = NULL;
+
 // ==========================================
 // 🧠 核心推理引擎 (AI Agent 的雏形)
 // ==========================================
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     const struct feature_event *e = data;
     int policy_fd = *(int *)ctx; // 拿到 policy_storage 的 Map FD
+
+    // if (!csv_log) {
+    //     csv_log = fopen("ycsb_memory_features.csv", "w");
+    //     fprintf(csv_log, "tid,seq_ratio,avg_stride\n"); 
+    // }
     
     // 1. 用户态执行特征计算 (现在你可以毫无顾忌地用浮点数和除法了)
     // 这里的 1000 对应 BPF 里的 BATCH_SIZE
     float seq_ratio = (float)e->seq_count / 1000.0f; 
     float avg_stride = (float)e->stride_sum / 1000.0f;
 
+    // fprintf(csv_log, "%u,%.3f,%.1f\n", e->tid, seq_ratio, avg_stride);
+    // fflush(csv_log);
+
     // 2. 策略推断 (Ablation Study 阶段：先用静态规则复刻之前的行为)
     u32 policy = 0; // POLICY_LRU 默认保护前台业务
     
     // 规则：极高的顺序访问比率 -> 判定为 LevelDB Compaction 线程
-    if (seq_ratio > 0.8f) {
+    if (seq_ratio > 0.9f) {
         policy = 1; // POLICY_MRU (快速驱逐，不污染 Cache)
     }
+
 
     // 3. 反向注入：获取线程的 pidfd 并下发策略到 BPF Task Storage
     int pidfd = syscall(SYS_pidfd_open, e->tid, 0);
