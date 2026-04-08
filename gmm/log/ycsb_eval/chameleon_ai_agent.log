@@ -1,3 +1,4 @@
-🚀 Chameleon Data Plane successfully attached to cgroup!
+🚀 Chameleon Control Plane started! Monitoring memory access patterns...
+[🧠 Agent] TID: 333 | SeqRatio: 0.31 | AvgStride: 440.3 -> Policy: 🟢 LRU (Protect)
 
-🛑 Chameleon Data Plane stopped and cleaned up.
+🛑 Chameleon Control Plane stopped and cleaned up.
