@@ -10,11 +10,11 @@ char _license[] SEC("license") = "GPL";
 // ==========================================
 // 运行模式开关 (互斥！每次编译前选择 1 个置为 1)
 // ==========================================
-#define DATA_COLLECT 0 // 开启收集模式 (向 RingBuffer 发送特征)
-#define DEPLOY       1 // 关闭部署模式
+#define DATA_COLLECT 0 // 收集模式 (向 RingBuffer 发送特征)
+#define DEPLOY       1 // 部署模式
 
-#define WINDOW_SIZE 100
-#define SAMPLING_MASK 0x0F
+#define WINDOW_SIZE 10
+#define SAMPLING_MASK 0x3F
 #define TRACK_DEPTH 4
 
 enum policy_type {
@@ -33,7 +33,8 @@ struct feature_event {
     u32 window_id;
     u32 seq_ratio_10000;    
     u32 hot_ratio_10000;
-    u32 new_ratio_10000;           
+    u32 new_ratio_10000;       
+    u64 stride_variance;    
 };
 
 struct {
@@ -49,7 +50,7 @@ struct page_track_info {
 };
 
 struct {
-    __uint(type, BPF_MAP_TYPE_LRU_PERCPU_HASH); 
+    __uint(type, BPF_MAP_TYPE_HASH); 
     __uint(max_entries, 200000); 
     __type(key, __u64); 
     __type(value, struct page_track_info); 
@@ -63,7 +64,7 @@ struct thread_stat {
     u64 seq_access_count;
     u64 hot_access_count;
     u64 new_page_count;
-    u64 last_mappings[TRACK_DEPTH]; // 👈 修改：数组化
+    u64 last_mappings[TRACK_DEPTH];
     u64 last_indexes[TRACK_DEPTH];
     u64 last_mapping;
     u64 last_index;
@@ -72,64 +73,89 @@ struct thread_stat {
     u32 smoothed_hot;
     u32 smoothed_new;
     u32 current_policy; 
+
+    u64 stride_count;
+    s64 stride_mean;
+    s64 stride_m2;
 };
 
 struct {
-    __uint(type, BPF_MAP_TYPE_LRU_HASH); 
-    __uint(max_entries, 4096);           
-    __type(key, u32);                    
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 4096);
+    __type(key, u32);
     __type(value, struct thread_stat);
 } thread_stats_map SEC(".maps");
 
-static inline u32 get_thread_policy() {
+static inline struct thread_stat *get_or_create_thread_stat(void) {
     u32 tid = (u32)bpf_get_current_pid_tgid();
-    struct thread_stat *st = bpf_map_lookup_elem(&thread_stats_map, &tid);
-    if (st) return st->current_policy;
-    return POLICY_LRU; // 默认相信是好人，走原生 LRU 旁路
-}
-
-static inline void record_access(u64 mapping, u64 index) {
-    u64 raw_tick = bpf_ktime_get_ns();
-    if ((raw_tick & SAMPLING_MASK) != 0) return; 
-
-    u32 tid = (u32)bpf_get_current_pid_tgid(); 
     struct thread_stat *st = bpf_map_lookup_elem(&thread_stats_map, &tid);
     
     if (!st) {
         struct thread_stat new_st = {};
-        new_st.last_mappings[0] = mapping;
-        new_st.last_indexes[0] = index;
-        new_st.current_policy = POLICY_LRU; 
+        new_st.current_policy = POLICY_LRU;
+        // 插入新线程的统计结构体
         bpf_map_update_elem(&thread_stats_map, &tid, &new_st, BPF_ANY);
-        return;
+        // 重新获取指针，确保可以直接原地修改
+        st = bpf_map_lookup_elem(&thread_stats_map, &tid);
     }
+    return st;
+}
+
+static inline u32 get_thread_policy(void) {
+    u32 tid = (u32)bpf_get_current_pid_tgid();
+    struct thread_stat *st = bpf_map_lookup_elem(&thread_stats_map, &tid);
+    if (st) return st->current_policy;
+    return POLICY_LRU; 
+}
+
+static inline void record_access(u64 mapping, u64 index, u64 raw_tick) {
+    struct thread_stat *st = get_or_create_thread_stat();
+    if (!st) return;
 
     st->tick++;
+
+    // 1. Welford 算法：流式计算跨步偏移量方差 (提取 Compaction 与 GET 的极性差异)
+    if (st->last_mapping == mapping) {
+        s64 delta_d = (s64)index - (s64)st->last_index;
+        st->stride_count++;
+        
+        s64 diff = delta_d - st->stride_mean;
+
+        // 🌟 修复：将有符号除法 (sdiv) 转换为无符号除法 (udiv)
+        u64 abs_diff = (diff < 0) ? -diff : diff;
+        u64 u_div = abs_diff / st->stride_count;
+        s64 s_div = (diff < 0) ? -(s64)u_div : (s64)u_div;
+        
+        st->stride_mean += s_div;
+        
+        s64 diff2 = delta_d - st->stride_mean;
+        st->stride_m2 += diff * diff2;
+    }
+    st->last_mapping = mapping;
+    st->last_index = index;
     
-    // 1. 连续性计算 (支持最高 4 路交替顺序读)
+    // 2. 连续性计算 (支持最高 4 路交替顺序读)
     bool is_seq = false;
     #pragma unroll
     for (int i = 0; i < TRACK_DEPTH; i++) {
         if (st->last_mappings[i] == mapping) {
             u64 diff = index - st->last_indexes[i];
-            // 容忍一定的预读跳跃
             if (diff > 0 && diff <= 512) {
                 st->seq_access_count++;
                 is_seq = true;
             }
-            st->last_indexes[i] = index; // 更新当前文件的推进游标
+            st->last_indexes[i] = index; 
             break;
         }
     }
     
-    // 如果是新文件，替换最老记录 (利用 tick 算一个简单的哈希取模作为驱逐位)
     if (!is_seq) {
-        int replace_idx = st->tick & (TRACK_DEPTH - 1); // 位运算替代取模更高效
+        int replace_idx = st->tick & (TRACK_DEPTH - 1); 
         st->last_mappings[replace_idx] = mapping;
         st->last_indexes[replace_idx] = index;
     }
 
-    // 2. 窗口结算与特征吐出
+    // 3. 窗口结算与推断
     if (st->tick > 0 && (st->tick % WINDOW_SIZE) == 0) {
         u32 cur_seq_ratio = (st->seq_access_count * 10000) / WINDOW_SIZE;
         u32 cur_hot_ratio = (st->hot_access_count * 10000) / WINDOW_SIZE;
@@ -150,11 +176,13 @@ static inline void record_access(u64 mapping, u64 index) {
 #if DATA_COLLECT
         struct feature_event *event = bpf_ringbuf_reserve(&feature_events, sizeof(*event), 0);
         if (event) {
-            event->tid = tid;
+            event->tid = (u32)bpf_get_current_pid_tgid();
             event->window_id = st->current_window_id;
             event->seq_ratio_10000 = cur_seq_ratio;
             event->hot_ratio_10000 = cur_hot_ratio;
             event->new_ratio_10000 = cur_new_ratio;
+            // 总体方差 V = m2 / n
+            event->stride_variance = st->stride_count > 1 ? ((u64)st->stride_m2 / st->stride_count) : 0;
             bpf_ringbuf_submit(event, 0);
         }
 #endif
@@ -163,22 +191,21 @@ static inline void record_access(u64 mapping, u64 index) {
         st->seq_access_count = 0;
         st->hot_access_count = 0;
         st->new_page_count = 0;
+        // Welford 变量在长期观察下更为稳定，根据需要决定是否在这里清零
+        // st->stride_count = 0; st->stride_mean = 0; st->stride_m2 = 0;
     }
 
-    // 3. 物理级重用距离 (IRR) 计算
+#if DATA_COLLECT
+    // 4. 物理级重用距离 (仅在采集模式下开启，保护 DEPLOY 时的内存开销)
     u64 page_id = mapping ^ (index << 12);
     u32 win_id = st->current_window_id;
-    u64 current_time_us = raw_tick / 1000; // 转化为微秒，统一物理时间标尺
+    u64 current_time_us = raw_tick / 1000;
 
     struct page_track_info *info = bpf_map_lookup_elem(&page_tracking_map, &page_id);
-    
     if (info) {
-        // 安全校验：防止同一微秒内并发读引发下溢
         if (current_time_us > info->last_access_tick) {
             u64 irr = current_time_us - info->last_access_tick;
-            if (irr < 50000) { 
-                st->hot_access_count++;
-            }
+            if (irr < 50000) st->hot_access_count++;
         }
         info->last_access_tick = current_time_us;
         info->window_id = win_id;
@@ -190,6 +217,7 @@ static inline void record_access(u64 mapping, u64 index) {
         };
         bpf_map_update_elem(&page_tracking_map, &page_id, &new_info, BPF_ANY);
     }
+#endif
 }
 
 s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
@@ -200,24 +228,32 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
+    u64 raw_tick = bpf_ktime_get_ns();
     struct address_space *mapping = BPF_CORE_READ(folio, mapping);
     u64 index = (u64)BPF_CORE_READ(folio, index);
-    record_access((u64)mapping, index);
+    
+    // 仅针对特征采集进行采样，降低计算开销
+    if ((raw_tick & SAMPLING_MASK) == 0) {
+        record_access((u64)mapping, index, raw_tick);
+    }
 
-
+    // 🌟 动作全量执行：得益于底层的 Batched 接口，这里的并发锁开销已经被抹平
     if (get_thread_policy() == POLICY_MRU) {
-        bpf_cache_ext_list_add(main_list, folio);
+        bpf_cache_ext_list_add_batched(main_list, folio);
     }
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
+    u64 raw_tick = bpf_ktime_get_ns();
     struct address_space *mapping = BPF_CORE_READ(folio, mapping);
     u64 index = (u64)BPF_CORE_READ(folio, index);
-    record_access((u64)mapping, index);
+    
+    if ((raw_tick & SAMPLING_MASK) == 0) {
+        record_access((u64)mapping, index, raw_tick);
+    }
 
-    // 🌟 核心：如果是毒药线程重访了页面，维持它在 MRU 隔离区的位置
     if (get_thread_policy() == POLICY_MRU) {
-        bpf_cache_ext_list_move(main_list, folio, false); 
+        bpf_cache_ext_list_move_batched(main_list, folio, false); 
     }
 }
 
@@ -234,7 +270,7 @@ static int evict_mru_cb(int idx, struct cache_ext_list_node *a) {
     bool writeback = folio_test_writeback(a->folio);
     bool locked = folio_test_locked(a->folio);
     
-    bpf_folio_check_referenced(a->folio); 
+    // bpf_folio_check_referenced(a->folio); 
 
     int action = CACHE_EXT_EVICT_NODE;
     int reason = 0; 

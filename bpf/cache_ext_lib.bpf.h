@@ -102,6 +102,8 @@ int bpf_cache_ext_list_iterate_reverse(
     struct cache_ext_eviction_ctx *ctx
 ) __ksym;
 struct folio *bpf_cache_ext_sieve_get_victim(struct mem_cgroup *memcg, u64 list) __ksym;
+int bpf_cache_ext_list_add_batched(u64 list, struct folio *folio) __ksym;
+int bpf_cache_ext_list_move_batched(u64 list, struct folio *folio, bool tail) __ksym;
 
 #define BITS_PER_LONG 64
 #define BIT_MASK(nr)		(UL(1) << ((nr) % BITS_PER_LONG))
