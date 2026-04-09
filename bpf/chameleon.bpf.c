@@ -17,22 +17,24 @@ enum policy_type {
 static u64 main_list; 
 
 // ==========================================
-// 1. 策略槽：存放用户态 Agent 下发的决策
+// 1. 策略 Map (Control Plane): 普通 HASH Map
+// 用户态写入，内核态纯读 (RCU 无锁极速查询)
 // ==========================================
 struct {
-    __uint(type, BPF_MAP_TYPE_TASK_STORAGE);
-    __uint(map_flags, BPF_F_NO_PREALLOC);
-    __type(key, int);
+    __uint(type, BPF_MAP_TYPE_HASH);   // 🌟 核心：去掉了 LRU，消除 lookup 锁！
+    __uint(max_entries, 10240);
+    __type(key, u32);   // 使用 TID 查找
     __type(value, u32); // 存储 policy_type
-} policy_storage SEC(".maps");
+} policy_map SEC(".maps");
 
 // ==========================================
-// 2. 采集槽：暂存当前线程未满 1000 次的访问统计
+// 2. 状态存储 (Data Plane): Task Storage
+// 恢复无敌的 Per-Thread 隔离，消除所有的累加锁！
 // ==========================================
 struct thread_stat_accumulator {
     u32 access_count;
     u32 seq_count;
-    u64 stride_sum; // 简化：只存跨步绝对值的和，方差交由用户态算
+    u64 stride_sum; 
     u64 last_mapping;
     u64 last_index;
     u64 last_mappings[TRACK_DEPTH];
@@ -64,23 +66,23 @@ struct {
 // 核心逻辑
 // ==========================================
 
-// 极速获取策略 (无锁，无 Hash Map 查询)
-static __always_inline u32 get_thread_policy(struct task_struct *task) {
-    u32 *policy = bpf_task_storage_get(&policy_storage, task, 0, 0);
+// 极速获取策略：RCU 无锁查询
+static __always_inline u32 get_thread_policy(u32 tid) {
+    u32 *policy = bpf_map_lookup_elem(&policy_map, &tid);
     if (policy) {
         return *policy;
     }
-    return POLICY_LRU; // 默认回退到标准 LRU
+    return POLICY_LRU; 
 }
 
-static __always_inline void record_access(struct task_struct *task, u64 mapping, u64 index) {
+// 极速状态记录：Task Storage 无锁累加
+static __always_inline void record_access(struct task_struct *task, u32 tid, u64 mapping, u64 index) {
     struct thread_stat_accumulator init_acc = {};
     struct thread_stat_accumulator *acc = bpf_task_storage_get(&stat_storage, task, &init_acc, BPF_LOCAL_STORAGE_GET_F_CREATE);
     if (!acc) return;
 
     acc->access_count++;
 
-    // 1. 计算跨步偏移和 (抛弃除法)
     if (acc->last_mapping == mapping) {
         s64 diff = (s64)index - (s64)acc->last_index;
         acc->stride_sum += (diff < 0) ? -diff : diff;
@@ -88,7 +90,6 @@ static __always_inline void record_access(struct task_struct *task, u64 mapping,
     acc->last_mapping = mapping;
     acc->last_index = index;
 
-    // 2. 连续性计算
     bool is_seq = false;
     #pragma unroll
     for (int i = 0; i < TRACK_DEPTH; i++) {
@@ -109,16 +110,14 @@ static __always_inline void record_access(struct task_struct *task, u64 mapping,
         acc->last_indexes[replace_idx] = index;
     }
 
-    // 3. 满 1000 次批量打包发往用户态
     if (acc->access_count >= BATCH_SIZE) {
         struct feature_event *event = bpf_ringbuf_reserve(&feature_ringbuf, sizeof(*event), 0);
         if (event) {
-            event->tid = (u32)bpf_get_current_pid_tgid();
+            event->tid = tid;
             event->seq_count = acc->seq_count;
             event->stride_sum = acc->stride_sum;
             bpf_ringbuf_submit(event, 0);
         }
-        // 重置累加器
         acc->access_count = 0;
         acc->seq_count = 0;
         acc->stride_sum = 0;
@@ -133,32 +132,32 @@ s32 BPF_STRUCT_OPS_SLEEPABLE(chameleon_init, struct mem_cgroup *memcg) {
 
 void BPF_STRUCT_OPS(chameleon_folio_added, struct folio *folio) {
     struct task_struct *task = bpf_get_current_task_btf();
+    u32 tid = (u32)bpf_get_current_pid_tgid();
     struct address_space *mapping = BPF_CORE_READ(folio, mapping);
     u64 index = (u64)BPF_CORE_READ(folio, index);
     u64 raw_tick = bpf_ktime_get_ns();
     
-    // 提升采样率到 1/8，因为纯加法计算极其轻量
     if ((raw_tick & 0x7) == 0) {
-        record_access(task, (u64)mapping, index);
+        record_access(task, tid, (u64)mapping, index);
     }
 
-    // 毫无负担的策略执行
-    if (get_thread_policy(task) == POLICY_MRU) {
+    if (get_thread_policy(tid) == POLICY_MRU) {
         bpf_cache_ext_list_add_batched(main_list, folio);
     }
 }
 
 void BPF_STRUCT_OPS(chameleon_folio_accessed, struct folio *folio) {
     struct task_struct *task = bpf_get_current_task_btf();
+    u32 tid = (u32)bpf_get_current_pid_tgid();
     struct address_space *mapping = BPF_CORE_READ(folio, mapping);
     u64 index = (u64)BPF_CORE_READ(folio, index);
     u64 raw_tick = bpf_ktime_get_ns();
     
     if ((raw_tick & 0x7) == 0) {
-        record_access(task, (u64)mapping, index);
+        record_access(task, tid, (u64)mapping, index);
     }
 
-    if (get_thread_policy(task) == POLICY_MRU) {
+    if (get_thread_policy(tid) == POLICY_MRU) {
         bpf_cache_ext_list_move_batched(main_list, folio, false); 
     }
 }

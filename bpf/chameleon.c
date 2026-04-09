@@ -70,23 +70,18 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     u32 policy = 0; // POLICY_LRU 默认保护前台业务
     
     // 规则：极高的顺序访问比率 -> 判定为 LevelDB Compaction 线程
-    if (seq_ratio > 0.9f) {
+    if (seq_ratio > 0.8f) {
         policy = 1; // POLICY_MRU (快速驱逐，不污染 Cache)
     }
 
 
     // 3. 反向注入：获取线程的 pidfd 并下发策略到 BPF Task Storage
-    int pidfd = syscall(SYS_pidfd_open, e->tid, 0);
-    if (pidfd >= 0) {
-        // 使用 pidfd 作为 key 更新 task storage
-        int err = bpf_map_update_elem(policy_fd, &pidfd, &policy, BPF_ANY);
-        if (err == 0) {
-            printf("[🧠 Agent] TID: %u | SeqRatio: %.2f | AvgStride: %.1f -> Policy: %s\n", 
-                   e->tid, seq_ratio, avg_stride, policy == 1 ? "🔴 MRU (Evict)" : "🟢 LRU (Protect)");
-        }
-        close(pidfd);
-    } else {
-        // 线程可能已经死掉，忽略即可
+    u32 tid = e->tid;
+    int err = bpf_map_update_elem(policy_fd, &tid, &policy, BPF_ANY);
+    
+    if (err == 0) {
+        printf("[🧠 Agent] TID: %u | SeqRatio: %.2f | AvgStride: %.1f -> Policy: %s\n", 
+               tid, seq_ratio, avg_stride, policy == 1 ? "🔴 MRU (Evict)" : "🟢 LRU (Protect)");
     }
     
     return 0;
@@ -133,7 +128,7 @@ int main(int argc, char **argv) {
     }
 
     // 获取 policy_storage 的 File Descriptor
-    int policy_fd = bpf_map__fd(skel->maps.policy_storage);
+    int policy_fd = bpf_map__fd(skel->maps.policy_map);
 
     // 建立 RingBuffer 高速通道，绑定处理函数，并把 policy_fd 作为 ctx 传进去
     rb = ring_buffer__new(bpf_map__fd(skel->maps.feature_ringbuf), handle_event, &policy_fd, NULL);
@@ -146,7 +141,7 @@ int main(int argc, char **argv) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     
-    // 💀 死循环：高速拉取内核态特征并实时决策
+    // 死循环：高速拉取内核态特征并实时决策
     while (!exiting) {
         // 轮询 RingBuffer，超时时间 100ms
         ring_buffer__poll(rb, 100); 

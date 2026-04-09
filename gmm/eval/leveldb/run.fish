@@ -17,9 +17,9 @@ set OP_COUNT 300000
 set THREAD_COUNT 1
 
 # 测试矩阵设定
-set strategies "ai_agent" #  "standard_lru"
-set workloads b c d e f
-set nr_runs 3
+set strategies  "ai_agent" #   "standard_lru"
+set workloads a b c d e f
+set nr_runs 1
 
 # ==========================================
 # 1. 绝对防御的清理钩子
