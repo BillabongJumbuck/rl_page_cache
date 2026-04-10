@@ -17,8 +17,8 @@ set OP_COUNT 300000
 set THREAD_COUNT 1
 
 # 测试矩阵设定
-set strategies  "ai_agent" #   "standard_lru"
-set workloads a b c d e f
+set strategies "ai_agent" "standard_lru" # "standard_lru" "ai_agent"
+set workloads a
 set nr_runs 1
 
 # ==========================================
@@ -142,7 +142,7 @@ for strategy in $strategies
 
             # 2. YCSB 前台业务：独占 CPU 0
             echo "  👉 正在单核全速压测 YCSB，输出至: $CURRENT_LOG"
-            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -P /home/messidor/YCSB-cpp/leveldb/leveldb.properties -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=1 -p measurementtype=hdrhistogram -s" > $CURRENT_LOG 2>&1
+            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -P /home/messidor/YCSB-cpp/leveldb/leveldb.properties -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=$THREAD_COUNT -p measurementtype=hdrhistogram -s" > $CURRENT_LOG 2>&1
             
             # 3. YCSB 跑完后，立刻击毙毒药
             echo "  └─ ✅ 本次压测结束！"

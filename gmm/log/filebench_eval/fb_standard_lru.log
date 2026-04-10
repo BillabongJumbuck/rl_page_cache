@@ -1,0 +1,5 @@
+Filebench Version 1.5-alpha3
+0.000: Allocated 177MB of shared memory
+0.006: Fileset has no directory width around line 5
+0.006: syntax error at '/web' around line 5
+Warning: no run command in the WML script!

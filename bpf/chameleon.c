@@ -1,4 +1,4 @@
-// chameleon.c: eBPF 用户态 Agent (Control Plane)
+// chameleon.c: eBPF 用户态 Agent (纯监控模式)
 #include <argp.h>
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -9,17 +9,11 @@
 #include <sys/resource.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <sys/syscall.h>
 
 typedef uint64_t u64;
 typedef uint32_t u32;
 
 #include "chameleon.skel.h"
-
-// 适配系统的 pidfd_open 调用
-#ifndef SYS_pidfd_open
-#define SYS_pidfd_open 434
-#endif
 
 // 必须与 BPF 程序中的特征结构体绝对对齐
 struct feature_event {
@@ -44,45 +38,19 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static volatile bool exiting = false;
 static void sig_handler(int sig) { exiting = true; }
 
-// static FILE *csv_log = NULL;
-
 // ==========================================
-// 🧠 核心推理引擎 (AI Agent 的雏形)
+// 📊 遥测引擎 (仅做数据收集与展示，不干预内核决策)
 // ==========================================
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     const struct feature_event *e = data;
-    int policy_fd = *(int *)ctx; // 拿到 policy_storage 的 Map FD
 
-    // if (!csv_log) {
-    //     csv_log = fopen("ycsb_memory_features.csv", "w");
-    //     fprintf(csv_log, "tid,seq_ratio,avg_stride\n"); 
-    // }
-    
-    // 1. 用户态执行特征计算 (现在你可以毫无顾忌地用浮点数和除法了)
-    // 这里的 1000 对应 BPF 里的 BATCH_SIZE
+    // 此时此刻，内核已经做完决策并执行了！这里只负责事后诸葛亮的遥测
     float seq_ratio = (float)e->seq_count / 1000.0f; 
     float avg_stride = (float)e->stride_sum / 1000.0f;
 
-    // fprintf(csv_log, "%u,%.3f,%.1f\n", e->tid, seq_ratio, avg_stride);
-    // fflush(csv_log);
-
-    // 2. 策略推断 (Ablation Study 阶段：先用静态规则复刻之前的行为)
-    u32 policy = 0; // POLICY_LRU 默认保护前台业务
-    
-    // 规则：极高的顺序访问比率 -> 判定为 LevelDB Compaction 线程
-    if (seq_ratio > 0.8f) {
-        policy = 1; // POLICY_MRU (快速驱逐，不污染 Cache)
-    }
-
-
-    // 3. 反向注入：获取线程的 pidfd 并下发策略到 BPF Task Storage
-    u32 tid = e->tid;
-    int err = bpf_map_update_elem(policy_fd, &tid, &policy, BPF_ANY);
-    
-    if (err == 0) {
-        printf("[🧠 Agent] TID: %u | SeqRatio: %.2f | AvgStride: %.1f -> Policy: %s\n", 
-               tid, seq_ratio, avg_stride, policy == 1 ? "🔴 MRU (Evict)" : "🟢 LRU (Protect)");
-    }
+    // 可视化输出，让你确认后台 Scan 线程确实在疯狂产生高 seq_ratio
+    printf("[📊 Monitor] TID: %u | SeqRatio: %.2f | AvgStride: %.1f\n", 
+           e->tid, seq_ratio, avg_stride);
     
     return 0;
 }
@@ -127,23 +95,19 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    // 获取 policy_storage 的 File Descriptor
-    int policy_fd = bpf_map__fd(skel->maps.policy_map);
-
-    // 建立 RingBuffer 高速通道，绑定处理函数，并把 policy_fd 作为 ctx 传进去
-    rb = ring_buffer__new(bpf_map__fd(skel->maps.feature_ringbuf), handle_event, &policy_fd, NULL);
+    // 🌟 核心修改：去掉了 policy_fd，这里上下文 ctx 直接传 NULL
+    rb = ring_buffer__new(bpf_map__fd(skel->maps.feature_ringbuf), handle_event, NULL, NULL);
     if (!rb) {
         fprintf(stderr, "Failed to create ring buffer\n");
         goto cleanup;
     }
 
-    printf("🚀 Chameleon Control Plane started! Monitoring memory access patterns...\n");
+    printf("🚀 Chameleon Telemetry Monitor started! Kernel is driving the logic...\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     
-    // 死循环：高速拉取内核态特征并实时决策
+    // 死循环：拉取遥测特征，同时防止 RingBuffer 堆积
     while (!exiting) {
-        // 轮询 RingBuffer，超时时间 100ms
         ring_buffer__poll(rb, 100); 
     }
 
@@ -152,6 +116,6 @@ cleanup:
     if (cgroup_fd >= 0) close(cgroup_fd);
     if (link) bpf_link__destroy(link);
     if (skel) chameleon_bpf__destroy(skel);
-    printf("\n🛑 Chameleon Control Plane stopped and cleaned up.\n");
+    printf("\n🛑 Chameleon Telemetry Monitor stopped and cleaned up.\n");
     return 0;
 }
