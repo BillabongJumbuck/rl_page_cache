@@ -1,0 +1,24 @@
+🧠 [1/3] Loading LightGBM Model (No-IOPS Ablation Version)...
+🚀 [2/3] Starting Telemetry Subprocess on /sys/fs/cgroup/cache_ext_test...
+⏳ Waiting for C loader to initialize and pin eBPF maps...
+🔗 [3/3] Binding to libbpf for zero-overhead Map updates...
+
+🤖 AI Agent is now actively managing Page Cache Polices (Spatial Analytics Mode)!
+
+TID      | IOPS(Ignored) | Seq  | Stride | Uniq || 🛡️ ACTION
+----------------------------------------------------------------------
+
+🛑 AI Agent shutting down...
+Traceback (most recent call last):
+  File "/home/messidor/rl_page_cache/gmm/inference/agent.py", line 81, in <module>
+    for line in process.stdout:
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/messidor/rl_page_cache/gmm/inference/agent.py", line 108, in <module>
+    process.terminate()
+  File "/usr/lib/python3.10/subprocess.py", line 2114, in terminate
+    def terminate(self):
+KeyboardInterrupt

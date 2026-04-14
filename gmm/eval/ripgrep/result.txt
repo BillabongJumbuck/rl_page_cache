@@ -1,0 +1,72 @@
+=== Chameleon Automation Benchmark Started ===
+Timestamp: Sat Apr 11 11:41:02 AM UTC 2026
+
+========================================================
+▶▶▶ [Progress] Policy [linux_classic] | Run: 1/1
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+starting with Linux Classic LRU (No Chameleon probe)...
+[Config] memory.max=1G memory.high=800M rg_rounds=5 rg_threads=1
+[Before] memory.current=0
+[Before] memory.events=low 0,high 0,max 0,oom 0,oom_kill 0,oom_group_kill 0
+	Command being timed: "fish -c for i in (seq 1 5); rg -j 1 --no-mmap write /home/messidor/linux > /dev/null; end"
+	User time (seconds): 8.42
+	System time (seconds): 21.09
+	Percent of CPU this job got: 39%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:15.38
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 6528
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 118
+	Minor (reclaiming a frame) page faults: 3014
+	Voluntary context switches: 509902
+	Involuntary context switches: 216
+	Swaps: 0
+	File system inputs: 15206120
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+[After] memory.current=835670016
+[After] memory.peak=839340032
+[After] memory.events=low 0,high 17080,max 0,oom 0,oom_kill 0,oom_group_kill 0
+
+========================================================
+▶▶▶ [Progress] Policy [mru] | Run: 1/1
+========================================================
+[System] Disabling MGLRU (Falling back to Classic Active/Inactive LRU)...
+Starting mru probe (Preparing Policy: mru)...
+[Config] memory.max=1G memory.high=800M rg_rounds=5 rg_threads=1
+[Before] memory.current=0
+[Before] memory.events=low 0,high 0,max 0,oom 0,oom_kill 0,oom_group_kill 0
+	Command being timed: "fish -c for i in (seq 1 5); rg -j 1 --no-mmap write /home/messidor/linux > /dev/null; end"
+	User time (seconds): 5.41
+	System time (seconds): 15.78
+	Percent of CPU this job got: 42%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:49.76
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 6528
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 113
+	Minor (reclaiming a frame) page faults: 3018
+	Voluntary context switches: 311777
+	Involuntary context switches: 506
+	Swaps: 0
+	File system inputs: 11970920
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+[After] memory.current=835915776
+[After] memory.peak=839135232
+[After] memory.events=low 0,high 20464,max 0,oom 0,oom_kill 0,oom_group_kill 0

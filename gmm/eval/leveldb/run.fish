@@ -1,25 +1,39 @@
 #!/usr/bin/env fish
-# eval_workloads_full.fish (物理隔离抗毒药验证版)
+# eval_workloads_full.fish (物理隔离抗毒药验证版 - 包含 Noisy Neighbor)
 
 set ROOT_DIR "/home/messidor/rl_page_cache"
 set GMM_DIR "$ROOT_DIR/gmm"
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
 set CML_BIN "$ROOT_DIR/bpf/chameleon.out"
 set YCSB_BIN "/home/messidor/YCSB-cpp/ycsb"
+set VENV_PYTHON "$GMM_DIR/.venv/bin/python"
 
 set DB_PATH "/home/messidor/tmp/leveldb_ycsb"
 set GOLDEN_PATH "/home/messidor/db_data"  # 👈 你的母体路径
+set FIO_DUMMY_FILE "/home/messidor/tmp/noisy_dummy.dat" # 👈 毒药大文件路径
 set LOG_DIR "$GMM_DIR/log/ycsb_eval"
 mkdir -p $LOG_DIR
 
 set RECORD_COUNT 5000000
 set OP_COUNT 300000
 set THREAD_COUNT 1
+set NOISY_RUNTIME 240
+set NOISY_RATE "120m"
+set NOISY_WORKING_SET "12G"
 
 # 测试矩阵设定
-set strategies "ai_agent" "standard_lru" # "standard_lru" "ai_agent"
+set strategies "ai_agent"  # "standard_lru" "ai_agent"
 set workloads a
 set nr_runs 1
+
+# ==========================================
+# 0. 毒药弹药库准备
+# ==========================================
+if not test -f $FIO_DUMMY_FILE
+    echo "[Init] ⚠️ 找不到毒药文件，正在瞬间分配 20GB 大小 (fallocate)..."
+    fallocate -l 20G $FIO_DUMMY_FILE
+    echo "[Init] ✅ 毒药文件创建完毕: $FIO_DUMMY_FILE"
+end
 
 # ==========================================
 # 1. 绝对防御的清理钩子
@@ -27,6 +41,8 @@ set nr_runs 1
 function cleanup_bpf_agent
     echo "[Cleanup] 🔪 正在执行深度清理..."
     sudo pkill -9 -f "ycsb" 2>/dev/null
+    sudo pkill -9 -f "fio" 2>/dev/null  # 🌟 增加对 fio 的清理
+    sudo pkill -9 -f "inference/agent.py" 2>/dev/null
     sudo pkill -SIGINT -f "chameleon.out" 2>/dev/null
     sleep 2
     sudo pkill -9 -f "chameleon.out" 2>/dev/null
@@ -129,28 +145,44 @@ for strategy in $strategies
                 echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
                 
                 echo "  └─ 🚀 启动变色龙内核探针..."
-                sudo $CML_BIN -c $CGROUP_DIR < /dev/null > $LOG_DIR/chameleon_$strategy.log 2>&1 &
-                sleep 2 
-                
+                # 注意：这里我们让 CML 跑在根 cgroup 或者单独拿出来，不影响业务 cgroup 性能分析
+                # 分离 stdout/stderr，并强制 Python 无缓冲，避免日志迟迟不落盘。
+                sudo bash -c "CHAMELEON_FLUSH_EVERY=256 CHAMELEON_STATS_INTERVAL=10 CHAMELEON_ENABLE_STATS=0 PYTHONUNBUFFERED=1 $CML_BIN -c $CGROUP_DIR 2> $LOG_DIR/chameleon_bpf_$strategy.log | CHAMELEON_TID_SUMMARY=0 CHAMELEON_AGENT_STATS_INTERVAL=10 PYTHONUNBUFFERED=1 stdbuf -oL -eL $VENV_PYTHON -u $GMM_DIR/inference/agent.py > $LOG_DIR/ai_agent_$strategy.log 2> $LOG_DIR/ai_agent_$strategy.err.log" &
+                sleep 3 
             end
             
             set CURRENT_LOG "$LOG_DIR/ycsb_"$strategy"_"$wl"_run"$run".log"
+            set FIO_LOG "$LOG_DIR/fio_"$strategy"_"$wl"_run"$run".log"
             
             # --------------------------------------------------
             # 🛡️ 双核完美隔离战场 (Plan B - 极简证明基点)
             # --------------------------------------------------
 
-            # 2. YCSB 前台业务：独占 CPU 0
-            echo "  👉 正在单核全速压测 YCSB，输出至: $CURRENT_LOG"
-            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -P /home/messidor/YCSB-cpp/leveldb/leveldb.properties -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=$THREAD_COUNT -p measurementtype=hdrhistogram -s" > $CURRENT_LOG 2>&1
+            # 🌟 步骤 2.1：投放“吵闹的邻居” (后台运行，绑定 CPU 1)
+            # 使用 Buffered IO (direct=0) 扫描远大于内存上限的工作集，稳定制造缓存污染
+            echo "  ☠️  正在投放后台毒药 (fio 大文件扫描)，独占 CPU 1，输出至: $FIO_LOG"
+            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 1 fio --name=noisy_neighbor --filename=$FIO_DUMMY_FILE --ioengine=sync --rw=read --bs=1M --size=$NOISY_WORKING_SET --time_based --runtime=$NOISY_RUNTIME --numjobs=1 --direct=0 --invalidate=1 --rate=$NOISY_RATE" > $FIO_LOG 2>&1 &
+            # 稍微等一秒，让 fio 把内存里的脏水搅动起来
+            sleep 1
+
+            iostat -dx /dev/nvme1n1p6 1 > $LOG_DIR/iostat_$strategy.log &
+            set IOSTAT_PID $last_pid
+
+            # 🌟 步骤 2.2：YCSB 前台业务 (前台阻塞运行，绑定 CPU 0)
+            echo "  👉 正在单核全速压测 YCSB，独占 CPU 0，输出至: $CURRENT_LOG"
+            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 0 $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -P /home/messidor/YCSB-cpp/leveldb/leveldb.properties -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=$THREAD_COUNT -p measurementtype=hdrhistogram -s" > $CURRENT_LOG 2>&1
             
-            # 3. YCSB 跑完后，立刻击毙毒药
-            echo "  └─ ✅ 本次压测结束！"
+            # 🌟 步骤 2.3：YCSB 跑完后，立刻击毙毒药
+            echo "  └─ ✅ YCSB 本次压测结束！正在击毙毒药进程..."
+            sudo pkill -9 -f "fio" 2>/dev/null
+            kill $IOSTAT_PID 2>/dev/null
+            
+            sleep 2
         end
     end
 end
 
-echo "\n\n======================================================="
+echo -e "\n\n======================================================="
 echo "🎉 终极大考结束！"
 echo "👉 请前往 $LOG_DIR 查收所有的纯净版日志文件。"
 handle_exit

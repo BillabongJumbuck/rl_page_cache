@@ -1,0 +1,134 @@
+🚀 [Python Agent] 正在通过 FFI 将 eBPF 挂载至 /sys/fs/cgroup/cache_ext_web ...
+🎧 [Python Agent] 启动成功，开始 4 维特征周期性调优...
+📊 [State ] IOPS: 640    | Seq: 0.82 | Hot: 0.00 | New: 0.08
+🧠 [Action] 检测到并发锁惩罚，全面放行 -> Mode:1, SeqTh:80, HotTol:90, NewPen:95
+📊 [State ] IOPS: 1792   | Seq: 0.00 | Hot: 0.07 | New: 0.00
+🧠 [Action] 默认策略 -> Mode:0, SeqTh:80, HotTol:90, NewPen:95
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.07 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.07 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.07 | New: 0.00
+📊 [State ] IOPS: 74240  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 76800  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 76800  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 78592  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 84864  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 83328  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 79616  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 83584  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 82432  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 84736  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 75392  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 74880  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 79616  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 77184  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 82560  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 62208  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 25728  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 82176  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 78336  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 79872  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 83712  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 76416  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 77312  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 80384  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 77440  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 72960  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 78976  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 81920  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 75520  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 76288  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 79744  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 81920  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 75904  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 76032  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 71936  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 74880  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 70144  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 68608  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 73984  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 71680  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 71296  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 72448  | Seq: 0.88 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 69248  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 80896  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 77312  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 70912  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 74624  | Seq: 0.89 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 70528  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 75648  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 73472  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 75776  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 67712  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 70784  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 76032  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 70272  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 75264  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 67584  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 71296  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 73856  | Seq: 0.90 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 74496  | Seq: 0.91 | Hot: 0.00 | New: 0.00
+📊 [State ] IOPS: 4608   | Seq: 0.43 | Hot: 0.03 | New: 0.01
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.01 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 3712   | Seq: 0.03 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3840   | Seq: 0.00 | Hot: 0.03 | New: 0.00
+📊 [State ] IOPS: 3712   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3584   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3328   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 3200   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2944   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2944   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2432   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 3072   | Seq: 0.24 | Hot: 0.03 | New: 0.02
+📊 [State ] IOPS: 3840   | Seq: 0.00 | Hot: 0.03 | New: 0.00
+📊 [State ] IOPS: 3968   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3712   | Seq: 0.00 | Hot: 0.03 | New: 0.00
+📊 [State ] IOPS: 3584   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3328   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3456   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3200   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3200   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2816   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2816   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 3200   | Seq: 0.04 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 4736   | Seq: 0.00 | Hot: 0.02 | New: 0.00
+📊 [State ] IOPS: 4352   | Seq: 0.00 | Hot: 0.03 | New: 0.00
+📊 [State ] IOPS: 3968   | Seq: 0.00 | Hot: 0.03 | New: 0.00
+📊 [State ] IOPS: 3840   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3712   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 3328   | Seq: 0.00 | Hot: 0.04 | New: 0.00
+📊 [State ] IOPS: 2944   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2944   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.06 | New: 0.00
+📊 [State ] IOPS: 2688   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+📊 [State ] IOPS: 2560   | Seq: 0.00 | Hot: 0.05 | New: 0.00
+Exception ignored in atexit callback: <bound method ChameleonRLAgent.cleanup of <__main__.ChameleonRLAgent object at 0x732895553730>>
+Traceback (most recent call last):
+  File "/home/messidor/rl_page_cache/gmm/agent/agent.py", line 76, in cleanup
+    lib.cleanup_bpf()
+KeyboardInterrupt: 
+
+🧹 [Python Agent] 正在卸载 eBPF 探针并清理资源...
+✨ [C FFI] eBPF Data Plane successfully attached to /sys/fs/cgroup/cache_ext_web (CPUs: 12)
+🧹 [C FFI] eBPF Data Plane detached.

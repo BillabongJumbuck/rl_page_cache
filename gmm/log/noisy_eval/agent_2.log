@@ -1,0 +1,113 @@
+🧠 [1/3] Loading LightGBM Model (No-IOPS Ablation Version)...
+🔗 [2/3] Binding to libbpf for zero-overhead Map updates...
+⏳ Waiting for Data Plane to pin eBPF map at /sys/fs/bpf/chameleon/ai_policy_map...
+✅ eBPF Map successfully bounded!
+
+🤖 AI Agent is now actively managing Page Cache Polices (Decoupled Mode)!
+
+TID-aware policy control enabled (low-overhead mode).
+[switch] tid=6192 policy=LRU iops=3443.7 seq=0.53 stride=423848.2 uniq=0.76
+[stats] events=1 updates=1 active_tids=1 eps=0 ups=0.3
+[switch] tid=6211 policy=LRU iops=6836.7 seq=0.01 stride=90934.1 uniq=1.00
+[stats] events=46 updates=2 active_tids=2 eps=45 ups=1.0
+[stats] events=124 updates=2 active_tids=2 eps=77 ups=0.0
+[stats] events=198 updates=2 active_tids=2 eps=73 ups=0.0
+[stats] events=280 updates=2 active_tids=2 eps=82 ups=0.0
+[stats] events=367 updates=2 active_tids=2 eps=87 ups=0.0
+[stats] events=445 updates=2 active_tids=2 eps=77 ups=0.0
+[stats] events=524 updates=2 active_tids=2 eps=78 ups=0.0
+[stats] events=606 updates=2 active_tids=2 eps=82 ups=0.0
+[stats] events=682 updates=2 active_tids=2 eps=76 ups=0.0
+[stats] events=759 updates=2 active_tids=2 eps=77 ups=0.0
+[stats] events=839 updates=2 active_tids=2 eps=79 ups=0.0
+[stats] events=918 updates=2 active_tids=2 eps=78 ups=0.0
+[stats] events=996 updates=2 active_tids=2 eps=78 ups=0.0
+[stats] events=1077 updates=2 active_tids=2 eps=81 ups=0.0
+[stats] events=1154 updates=2 active_tids=2 eps=76 ups=0.0
+[stats] events=1232 updates=2 active_tids=2 eps=77 ups=0.0
+[stats] events=1315 updates=2 active_tids=2 eps=82 ups=0.0
+[stats] events=1393 updates=2 active_tids=2 eps=77 ups=0.0
+[stats] events=1472 updates=2 active_tids=2 eps=79 ups=0.0
+[stats] events=1551 updates=2 active_tids=2 eps=78 ups=0.0
+[stats] events=1631 updates=2 active_tids=2 eps=80 ups=0.0
+[stats] events=1711 updates=2 active_tids=2 eps=80 ups=0.0
+[stats] events=1792 updates=2 active_tids=2 eps=80 ups=0.0
+[stats] events=1872 updates=2 active_tids=2 eps=79 ups=0.0
+[stats] events=1952 updates=2 active_tids=2 eps=79 ups=0.0
+[stats] events=2033 updates=2 active_tids=2 eps=81 ups=0.0
+[stats] events=2081 updates=2 active_tids=2 eps=47 ups=0.0
+[stats] events=2162 updates=2 active_tids=2 eps=80 ups=0.0
+[stats] events=2241 updates=2 active_tids=2 eps=79 ups=0.0
+[stats] events=2319 updates=2 active_tids=2 eps=77 ups=0.0
+[switch] tid=6308 policy=MRU iops=30735.5 seq=0.98 stride=1.0 uniq=1.00
+[switch] tid=6309 policy=MRU iops=18804.9 seq=0.98 stride=1.0 uniq=1.00
+[stats] events=2442 updates=4 active_tids=4 eps=122 ups=2.0
+[stats] events=3500 updates=4 active_tids=4 eps=1047 ups=0.0
+[stats] events=3861 updates=4 active_tids=4 eps=360 ups=0.0
+[stats] events=4229 updates=4 active_tids=4 eps=367 ups=0.0
+[stats] events=5159 updates=4 active_tids=4 eps=924 ups=0.0
+[stats] events=5672 updates=4 active_tids=4 eps=512 ups=0.0
+[stats] events=6987 updates=4 active_tids=4 eps=1306 ups=0.0
+[stats] events=7794 updates=4 active_tids=4 eps=805 ups=0.0
+[stats] events=9206 updates=4 active_tids=4 eps=1365 ups=0.0
+[stats] events=11209 updates=4 active_tids=4 eps=1994 ups=0.0
+[stats] events=12951 updates=4 active_tids=4 eps=1739 ups=0.0
+[stats] events=13634 updates=4 active_tids=4 eps=682 ups=0.0
+[stats] events=14024 updates=4 active_tids=4 eps=387 ups=0.0
+[stats] events=14888 updates=4 active_tids=4 eps=864 ups=0.0
+[stats] events=15428 updates=4 active_tids=4 eps=534 ups=0.0
+[stats] events=16109 updates=4 active_tids=4 eps=680 ups=0.0
+[stats] events=16766 updates=4 active_tids=4 eps=656 ups=0.0
+[stats] events=17247 updates=4 active_tids=4 eps=481 ups=0.0
+[stats] events=18071 updates=4 active_tids=4 eps=824 ups=0.0
+[stats] events=18581 updates=4 active_tids=4 eps=510 ups=0.0
+[stats] events=19295 updates=4 active_tids=4 eps=714 ups=0.0
+[stats] events=19734 updates=4 active_tids=4 eps=437 ups=0.0
+[stats] events=19859 updates=4 active_tids=4 eps=125 ups=0.0
+[stats] events=20399 updates=4 active_tids=4 eps=539 ups=0.0
+[stats] events=21357 updates=4 active_tids=4 eps=957 ups=0.0
+[stats] events=21689 updates=4 active_tids=4 eps=332 ups=0.0
+[stats] events=21932 updates=4 active_tids=4 eps=242 ups=0.0
+[stats] events=22580 updates=4 active_tids=4 eps=643 ups=0.0
+[stats] events=22707 updates=4 active_tids=4 eps=127 ups=0.0
+[stats] events=24307 updates=4 active_tids=4 eps=1600 ups=0.0
+[switch] tid=6289 policy=LRU iops=4.2 seq=0.76 stride=150.1 uniq=0.98
+[switch] tid=6289 policy=MRU iops=1762939.8 seq=1.00 stride=1.0 uniq=1.00
+[switch] tid=6289 policy=LRU iops=8603.1 seq=0.87 stride=0.9 uniq=1.00
+[switch] tid=6289 policy=MRU iops=266162.6 seq=0.97 stride=11.4 uniq=1.00
+[stats] events=28344 updates=8 active_tids=5 eps=4007 ups=4.0
+[stats] events=28424 updates=8 active_tids=5 eps=79 ups=0.0
+[stats] events=28502 updates=8 active_tids=5 eps=77 ups=0.0
+[stats] events=28580 updates=8 active_tids=5 eps=78 ups=0.0
+[switch] tid=6211 policy=MRU iops=13727.2 seq=0.97 stride=118.6 uniq=1.00
+[switch] tid=6211 policy=LRU iops=355.8 seq=0.01 stride=93445.3 uniq=1.00
+[stats] events=28632 updates=10 active_tids=5 eps=52 ups=2.0
+[stats] events=28711 updates=10 active_tids=5 eps=78 ups=0.0
+[stats] events=28790 updates=10 active_tids=5 eps=78 ups=0.0
+[stats] events=28864 updates=10 active_tids=5 eps=73 ups=0.0
+[stats] events=28939 updates=10 active_tids=5 eps=74 ups=0.0
+[stats] events=29020 updates=10 active_tids=5 eps=80 ups=0.0
+[stats] events=29099 updates=10 active_tids=5 eps=78 ups=0.0
+[stats] events=29175 updates=10 active_tids=5 eps=76 ups=0.0
+[stats] events=29256 updates=10 active_tids=5 eps=80 ups=0.0
+[stats] events=29335 updates=10 active_tids=5 eps=78 ups=0.0
+[stats] events=29412 updates=10 active_tids=5 eps=77 ups=0.0
+[stats] events=29488 updates=10 active_tids=5 eps=75 ups=0.0
+[stats] events=29570 updates=10 active_tids=5 eps=81 ups=0.0
+[stats] events=29651 updates=10 active_tids=5 eps=80 ups=0.0
+[stats] events=29738 updates=10 active_tids=5 eps=86 ups=0.0
+[stats] events=29816 updates=10 active_tids=5 eps=78 ups=0.0
+[stats] events=29895 updates=10 active_tids=5 eps=78 ups=0.0
+[stats] events=29973 updates=10 active_tids=5 eps=77 ups=0.0
+[stats] events=30051 updates=10 active_tids=5 eps=78 ups=0.0
+[stats] events=30126 updates=10 active_tids=5 eps=75 ups=0.0
+[stats] events=30201 updates=10 active_tids=5 eps=74 ups=0.0
+[stats] events=30271 updates=10 active_tids=5 eps=70 ups=0.0
+[stats] events=30348 updates=10 active_tids=5 eps=76 ups=0.0
+[stats] events=30422 updates=10 active_tids=5 eps=73 ups=0.0
+[stats] events=30501 updates=10 active_tids=5 eps=79 ups=0.0
+[switch] tid=6192 policy=MRU iops=633431.3 seq=1.00 stride=1.0 uniq=1.00
+[switch] tid=6192 policy=LRU iops=170214.8 seq=0.91 stride=32.6 uniq=1.00
+[switch] tid=6192 policy=MRU iops=6384.1 seq=0.93 stride=1.7 uniq=1.00
+
+🛑 AI Agent shutting down naturally...
