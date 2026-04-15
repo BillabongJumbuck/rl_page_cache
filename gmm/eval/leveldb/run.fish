@@ -1,26 +1,45 @@
 #!/usr/bin/env fish
 # eval_workloads_full.fish (物理隔离抗毒药验证版)
 
-set ROOT_DIR "/home/messidor/rl_page_cache"
+set ROOT_DIR "/home/messidor/copy"
 set GMM_DIR "$ROOT_DIR/gmm"
 set CGROUP_DIR "/sys/fs/cgroup/cache_ext_cml_test"
 set CML_BIN "$ROOT_DIR/bpf/chameleon.out"
-set AGENT_BIN "$GMM_DIR/deploy/cml_agent.out"
 set YCSB_BIN "/home/messidor/YCSB-cpp/ycsb"
+set RUN_TAG (date +"%Y%m%d_%H%M%S")
 
 set DB_PATH "/tmp/leveldb_ycsb"
 set GOLDEN_PATH "/home/messidor/db_data"  # 👈 你的母体路径
-set LOG_DIR "$GMM_DIR/log/ycsb_eval"
+set LOG_ROOT "$GMM_DIR/log/ycsb_eval"
+set FEATURE_ROOT "$GMM_DIR/log/feature_csv"
+set LOG_DIR "$LOG_ROOT/$RUN_TAG"
+set FEATURE_DIR "$FEATURE_ROOT/$RUN_TAG"
+set FIO_DUMMY_FILE "/home/messidor/tmp/noisy_dummy.dat" # 👈 毒药大文件路径
 mkdir -p $LOG_DIR
+mkdir -p $FEATURE_DIR
 
 set RECORD_COUNT 5000000
 set OP_COUNT 300000
 set THREAD_COUNT 1
 
+# 后台毒药负载参数
+set NOISY_WORKING_SET "20G"
+set NOISY_RUNTIME 300
+set NOISY_RATE "0"
+
 # 测试矩阵设定
-set strategies  "ai_agent" "standard_lru"  # "mglru"
-set workloads a b c d e f
+set strategies "ai_agent"
+set workloads a b c
 set nr_runs 3
+
+# ==========================================
+# 0. 毒药弹药库准备
+# ==========================================
+if not test -f $FIO_DUMMY_FILE
+    echo "[Init] ⚠️ 找不到毒药文件，正在瞬间分配 20GB 大小 (fallocate)..."
+    fallocate -l 20G $FIO_DUMMY_FILE
+    echo "[Init] ✅ 毒药文件创建完毕: $FIO_DUMMY_FILE"
+end
 
 # ==========================================
 # 1. 绝对防御的清理钩子
@@ -28,9 +47,11 @@ set nr_runs 3
 function cleanup_bpf_agent
     echo "[Cleanup] 🔪 正在执行深度清理..."
     sudo pkill -9 -f "ycsb" 2>/dev/null
+    sudo pkill -9 -f "fio --name=noisy_neighbor" 2>/dev/null
     sudo pkill -SIGINT -f "cml_agent.out" 2>/dev/null
     sudo pkill -SIGINT -f "chameleon.out" 2>/dev/null
     sleep 2
+    sudo pkill -9 -f "fio --name=noisy_neighbor" 2>/dev/null
     sudo pkill -9 -f "cml_agent.out" 2>/dev/null
     sudo pkill -9 -f "chameleon.out" 2>/dev/null
     
@@ -92,40 +113,46 @@ setup_cgroup
 # ==========================================
 # 4. 核心大循环：策略 x 负载 x 运行次数
 # ==========================================
-for strategy in $strategies
-    echo -e "\n\n======================================================="
-    echo " 👑 当前比拼策略: [$strategy] "
-    echo "======================================================="
-    
-    cleanup_bpf_agent
-    setup_cgroup
-    
-    # 🌟 每次切换策略时，恢复干净的数据库物理环境
-    echo "[Data Restore] 🔄 正在从 Golden Copy 极速克隆数据库状态 (耗时仅需几秒)..."
-    rsync -a --delete $GOLDEN_PATH/ $DB_PATH/
-    sync
-    echo "  └─ ✅ 克隆完成，确保本轮测试物理环境绝对公平！"
-    
-    if test "$strategy" = "standard_lru"
-        echo "[Config] 切换至 Linux 标准双链表 LRU..."
-        echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
-        
-    else if test "$strategy" = "mglru"
-        echo "[Config] 切换至 Linux 现代 MGLRU (Multi-Gen LRU)..."
-        echo 7 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
-        
-    else if test "$strategy" = "ai_agent"
-        echo "[Config] 切换至 🤖 AI Agent 动态控制态..."
-        echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
-        
-        echo "  └─ 🚀 启动变色龙内核探针..."
-        sudo $CML_BIN -c $CGROUP_DIR < /dev/null > $LOG_DIR/chameleon_$strategy.log 2>&1 &
-        sleep 2 
-        
-    end
+for wl in $workloads
+    for run in (seq 1 $nr_runs)
+        for strategy in $strategies
+            echo -e "\n\n======================================================="
+            echo " 👑 当前比拼策略: [$strategy] "
+            echo "======================================================="
+            
+            cleanup_bpf_agent
+            setup_cgroup
+            
+            # 🌟 每次切换策略时，恢复干净的数据库物理环境
+            echo "[Data Restore] 🔄 正在从 Golden Copy 极速克隆数据库状态 (耗时仅需几秒)..."
+            rsync -a --delete $GOLDEN_PATH/ $DB_PATH/
+            sync
+            echo "  └─ ✅ 克隆完成，确保本轮测试物理环境绝对公平！"
 
-    for wl in $workloads
-        for run in (seq 1 $nr_runs)
+            echo "[System] 🧹 正在强制下发 TRIM 指令..."
+            sudo fstrim -v /
+            
+            if test "$strategy" = "standard_lru"
+                echo "[Config] 切换至 Linux 标准双链表 LRU..."
+                echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+                
+            else if test "$strategy" = "mglru"
+                echo "[Config] 切换至 Linux 现代 MGLRU (Multi-Gen LRU)..."
+                echo 7 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+                
+            else if test "$strategy" = "ai_agent"
+                echo "[Config] 切换至 🤖 AI Agent 动态控制态..."
+                echo 0 | sudo tee /sys/kernel/mm/lru_gen/enabled > /dev/null 2>&1
+                set CHAMELEON_LOG "$LOG_DIR/chameleon_"$strategy"_"$wl"_run"$run".log"
+                set FEATURE_CSV "$FEATURE_DIR/features_"$strategy"_"$wl"_run"$run".csv"
+                
+                echo "  └─ 🚀 启动变色龙内核探针..."
+                echo "  └─ 🧾 特征输出至: $FEATURE_CSV"
+                sudo $CML_BIN -c $CGROUP_DIR -o $FEATURE_CSV < /dev/null > $CHAMELEON_LOG 2>&1 &
+                sleep 2 
+                
+            end
+
             echo "-------------------------------------------------------"
             echo "🔥 [$strategy] 正在执行 Workload $wl (第 $run/$nr_runs 次) ..."
             
@@ -134,16 +161,22 @@ for strategy in $strategies
             sleep 10
             
             set CURRENT_LOG "$LOG_DIR/ycsb_"$strategy"_"$wl"_run"$run".log"
+            set FIO_LOG "$LOG_DIR/fio_"$strategy"_"$wl"_run"$run".log"
             
             # --------------------------------------------------
             # 🛡️ 双核完美隔离战场 (Plan B - 极简证明基点)
             # --------------------------------------------------
+            echo "  ☠️  正在投放后台毒药 (fio 大文件扫描)，独占 CPU 1，输出至: $FIO_LOG"
+            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 1 fio --name=noisy_neighbor --filename=$FIO_DUMMY_FILE --ioengine=sync --rw=read --bs=1M --size=$NOISY_WORKING_SET --time_based --runtime=$NOISY_RUNTIME --numjobs=1 --direct=0 --invalidate=1 --rate=$NOISY_RATE" > $FIO_LOG 2>&1 &
+            # 稍微等一秒，让 fio 把内存里的脏水搅动起来
+            sleep 1
 
             # 2. YCSB 前台业务：独占 CPU 0
             echo "  👉 正在单核全速压测 YCSB (精准绑定至 CPU 0)，输出至: $CURRENT_LOG"
-            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 0 $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -p leveldb.dbname=$DB_PATH -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=1 -p measurementtype=hdrhistogram" > $CURRENT_LOG 2>&1
+            bash -c "echo \$\$ | sudo tee $CGROUP_DIR/cgroup.procs > /dev/null && exec taskset -c 0 $YCSB_BIN -run -db leveldb -P /home/messidor/YCSB-cpp/workloads/workload$wl -P /home/messidor/YCSB-cpp/leveldb/leveldb.properties -p recordcount=$RECORD_COUNT -p operationcount=$OP_COUNT -p threadcount=$THREAD_COUNT -p measurementtype=hdrhistogram -s" > $CURRENT_LOG 2>&1
             
             # 3. YCSB 跑完后，立刻击毙毒药
+            sudo pkill -9 -f "fio --name=noisy_neighbor" 2>/dev/null
             echo "  └─ ✅ 本次单核压测结束！"
         end
     end
